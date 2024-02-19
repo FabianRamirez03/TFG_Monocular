@@ -262,17 +262,18 @@ def update_specific_csv_tags(csv_path, image_prefix, frames, tags):
 
 
 def update_csv():
+    csv_mainteinence()
     # Ejemplo de uso
     csv_path = "frames_labels.csv"  # Asegúrate de reemplazar 'tu_archivo.csv' con la ruta real de tu archivo CSV
     image_prefix = (
-        "TEC-Wajo-noche-lluvia\\0"  # Prefijo del path de las imágenes a actualizar
+        "Colonia-BlueFall-nublado\\0"  # Prefijo del path de las imágenes a actualizar
     )
     frames = []
     tags = {
-        "noche": True,
+        "noche": False,
         "soleado": False,
-        "nublado": False,
-        "lluvia": True,
+        "nublado": True,
+        "lluvia": False,
         "neblina": False,
         "sombras": False,
     }
@@ -280,6 +281,9 @@ def update_csv():
         update_csv_tags(csv_path, image_prefix, tags)
     else:
         update_specific_csv_tags(csv_path, image_prefix, frames, tags)
+
+    print_data_rows_counter()
+    print_label_counts()
 
 
 ###############################################################################################################################
@@ -379,9 +383,7 @@ def cleaning_wrong_directories_pipeline():
 
 # cleaning_wrong_directories_pipeline()
 # create_csv()
-# update_csv()
-print_data_rows_counter()
-print_label_counts()
+update_csv()
 # csv_mainteinence()
 # find_and_remove_empty_directories()
 #  remove_accents_and_rename_directories()
