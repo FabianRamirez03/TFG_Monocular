@@ -120,6 +120,61 @@ def create_csv():
 ###############################################################################################################################
 
 
+def csv_mainteinence_with_directory(base_dir, csv_path):
+    """
+    Actualiza el archivo CSV con los frames en base_dir:
+    1. Agrega nuevos frames al final del CSV.
+    2. Elimina filas del CSV si la imagen correspondiente no existe.
+
+    :param base_dir: Directorio base con subdirectorios que contienen imágenes.
+    :param csv_path: Path del archivo CSV a actualizar.
+    """
+    existing_images = set()
+    new_rows = []
+    header = ["Path", "noche", "soleado", "nublado", "lluvia", "neblina", "sombras"]
+
+    # Paso 1: Recolectar todos los paths de imagen existentes
+    for root, _, files in os.walk(base_dir):
+        for file in files:
+            if file.lower().endswith((".png", ".jpg", ".jpeg")):
+                rel_path = os.path.relpath(os.path.join(root, file), start=base_dir)
+                existing_images.add(rel_path)
+
+    # Paso 2: Leer el CSV existente y mantener solo las filas con imágenes existentes
+    try:
+        with open(csv_path, "r", newline="", encoding="utf-8") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if row["Path"] in existing_images:
+                    new_rows.append(row)
+                    existing_images.remove(
+                        row["Path"]
+                    )  # Eliminar para no agregarlo nuevamente después
+    except FileNotFoundError:
+        print(f"No se encontró el archivo CSV: {csv_path}. Creando uno nuevo.")
+
+    # Paso 3: Agregar nuevas imágenes al CSV
+    for image_path in sorted(existing_images):  # Ordenar para mantener consistencia
+        new_row = dict.fromkeys(header, "")  # Inicializar todas las columnas en blanco
+        new_row["Path"] = image_path
+        new_rows.append(new_row)
+
+    # Paso 4: Escribir de nuevo al archivo CSV
+    with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=header)
+        writer.writeheader()
+        writer.writerows(new_rows)
+
+
+def csv_mainteinence():
+    base_dir = "custom_dataset\Processed"  # Asegúrate de ajustar esta ruta
+    csv_path = "frames_labels.csv"  # Asegúrate de ajustar esta ruta
+    csv_mainteinence_with_directory(base_dir, csv_path)
+
+
+###############################################################################################################################
+
+
 def count_rows_with_data(csv_path):
     """
     Cuenta el número de filas en el archivo CSV que tienen datos en los campos de tags.
@@ -324,9 +379,10 @@ def cleaning_wrong_directories_pipeline():
 
 # cleaning_wrong_directories_pipeline()
 # create_csv()
-update_csv()
+# update_csv()
 print_data_rows_counter()
 print_label_counts()
+# csv_mainteinence()
 # find_and_remove_empty_directories()
 #  remove_accents_and_rename_directories()
 # convert_videos_dir_to_frame()
