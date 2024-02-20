@@ -383,8 +383,10 @@ def cleaning_wrong_directories_pipeline():
 
 # cleaning_wrong_directories_pipeline()
 # create_csv()
-update_csv()
+# update_csv()
 # csv_mainteinence()
 # find_and_remove_empty_directories()
 #  remove_accents_and_rename_directories()
 # convert_videos_dir_to_frame()
+print_data_rows_counter()
+print_label_counts()
