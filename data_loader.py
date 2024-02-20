@@ -118,4 +118,4 @@ def test_data_loaders():
     imshow(torchvision.utils.make_grid(images[0]))
 
 
-test_data_loaders()
+# test_data_loaders()
