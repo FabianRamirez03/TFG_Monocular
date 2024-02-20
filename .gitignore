@@ -1,2 +1,6 @@
 
 custom_dataset/
+
+__pycache__/
+
+*.pth
