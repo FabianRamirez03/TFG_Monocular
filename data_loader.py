@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+####################################### Custom data loader #######################################
 class CustomDataset(Dataset):
     def __init__(self, csv_file, root_dir, transform=None):
         """
@@ -119,3 +120,49 @@ def test_data_loaders():
 
 
 # test_data_loaders()
+
+########################################## LOL dataset ##########################################
+
+
+class LOLDataset(Dataset):
+    def __init__(self, directory, transform=None):
+        """
+        Args:
+            directory (string): Path to the dataset directory (e.g., 'LOLdataset/train').
+            transform (callable, optional): Optional transform to be applied on a sample.
+        """
+        self.high_dir = os.path.join(directory, "high")
+        self.low_dir = os.path.join(directory, "low")
+        self.transform = transform
+        self.image_filenames = [
+            f
+            for f in os.listdir(self.low_dir)
+            if os.path.isfile(os.path.join(self.low_dir, f))
+        ]
+
+    def __len__(self):
+        """
+        Returns the total number of image pairs.
+        """
+        return len(self.image_filenames)
+
+    def __getitem__(self, idx):
+        """
+        Args:
+            idx (int): Index of the image pair to be loaded.
+
+        Returns:
+            tuple: (low_light_image, high_light_image) as tensor pairs.
+        """
+        img_name = self.image_filenames[idx]
+        low_image_path = os.path.join(self.low_dir, img_name)
+        high_image_path = os.path.join(self.high_dir, img_name)
+
+        low_image = Image.open(low_image_path)
+        high_image = Image.open(high_image_path)
+
+        if self.transform:
+            low_image = self.transform(low_image)
+            high_image = self.transform(high_image)
+
+        return low_image, high_image
