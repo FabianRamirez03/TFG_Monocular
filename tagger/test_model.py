@@ -9,8 +9,8 @@ from model import DualInputCNN
 import matplotlib.pyplot as plt
 
 # Configuración
-model_path = "models\\first_version_dual_input\\best_model.pth"
-test_folder = "custom_dataset\\Unprocessed"
+model_path = "..\\models\\first_version_dual_input\\best_model_tagger.pth"
+test_folder = "..\\datasets\\custom_dataset\\Unprocessed"
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 labels = ["Noche", "Soleado", "Nublado", "Lluvia", "Neblina", "Sombras"]
 

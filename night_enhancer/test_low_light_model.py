@@ -17,7 +17,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Cargar el modelo
 model = LowLightEnhancer().to(device)
-model.load_state_dict(torch.load("best_low_light_enhancer_model.pth"))
+model.load_state_dict(
+    torch.load(
+        "models\\first_version_light_enhancer\\best_low_light_enhancer_model.pth"
+    )
+)
 model.eval()
 
 # Transformaciones para las imágenes de entrada
@@ -119,5 +123,5 @@ def custom_main():
 
 
 if __name__ == "__main__":
-    # LOL_main()
-    custom_main()
+    LOL_main()
+    # custom_main()
