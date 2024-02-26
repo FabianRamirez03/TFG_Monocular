@@ -167,7 +167,7 @@ def csv_mainteinence_with_directory(base_dir, csv_path):
 
 
 def csv_mainteinence():
-    base_dir = "custom_dataset\Processed"  # Asegúrate de ajustar esta ruta
+    base_dir = "datasets\\custom_dataset\\Processed"  # Asegúrate de ajustar esta ruta
     csv_path = "frames_labels.csv"  # Asegúrate de ajustar esta ruta
     csv_mainteinence_with_directory(base_dir, csv_path)
 
@@ -266,13 +266,13 @@ def update_csv():
     # Ejemplo de uso
     csv_path = "frames_labels.csv"  # Asegúrate de reemplazar 'tu_archivo.csv' con la ruta real de tu archivo CSV
     image_prefix = (
-        "Colonia-BlueFall-nublado\\0"  # Prefijo del path de las imágenes a actualizar
+        "Dani-Garage-tarde\\0"  # Prefijo del path de las imágenes a actualizar
     )
     frames = []
     tags = {
         "noche": False,
-        "soleado": False,
-        "nublado": True,
+        "soleado": True,
+        "nublado": False,
         "lluvia": False,
         "neblina": False,
         "sombras": False,
@@ -388,5 +388,5 @@ def cleaning_wrong_directories_pipeline():
 # find_and_remove_empty_directories()
 #  remove_accents_and_rename_directories()
 # convert_videos_dir_to_frame()
-print_data_rows_counter()
-print_label_counts()
+# print_data_rows_counter()
+# print_label_counts()

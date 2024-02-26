@@ -20,8 +20,8 @@ workers = 16
 prefetch_factor = 5
 learning_rate = 0.0001
 num_epochs = 200
-csv_file = "frames_labels.csv"
-root_dir = "custom_dataset/Processed"
+csv_file = "..\\frames_labels.csv"
+root_dir = "..\\datasets\\custom_dataset/Processed"
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Transformaciones como se especificó para ResNet50
