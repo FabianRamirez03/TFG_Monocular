@@ -6,19 +6,19 @@ from torchvision import transforms
 from datetime import datetime, timedelta
 from torchvision.transforms.functional import InterpolationMode
 import time
+from torch.optim.lr_scheduler import StepLR
 
-# Suponiendo que CustomDataset es el nombre de tu clase de dataset
 from data_loader import DarkenerDataset
 from model import DarkEnhancementNet
 
 # Parámetros
-batch_size = 128
+batch_size = 4
 num_epochs = 200
-patience = 5  # Número de épocas para esperar después de una mejora antes de detener el entrenamiento
+patience = 10  # Número de épocas para esperar después de una mejora antes de detener el entrenamiento
 epochs_no_improve = 0
-learning_rate = 0.01
+learning_rate = 0.0005
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-workers = 5
+workers = 15
 prefecth = 5
 
 # Transformaciones
@@ -75,18 +75,25 @@ def main():
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
+    # Inicializar el Learning Rate Scheduler
+    scheduler = StepLR(optimizer, step_size=50, gamma=0.1)
+
     # Entrenamiento
     best_loss = float("inf")
     for epoch in range(num_epochs):
         start_time = time.time()
         model.train()
         running_loss = 0.0
-        for i, (inputs, targets) in enumerate(train_loader):
-            inputs, targets = inputs.to(device), targets.to(device)
+        # return original_image, darkened_image
+        for i, (bright, dark) in enumerate(train_loader):
+            bright, dark = bright.to(device), dark.to(device)
+            # print(f"Bright size: {bright.size()}")
+            # print(f"dark size: {dark.size()}")
 
             # Forward pass
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
+            outputs = model(dark)
+            # print(f"outputs size: {outputs.size()}")
+            loss = criterion(outputs, bright)
 
             # Backward and optimize
             optimizer.zero_grad()
@@ -102,7 +109,7 @@ def main():
             total_images = len(train_loader.dataset)
             eta = elapsed_time / images_processed * (total_images - images_processed)
 
-            if (i + 1) % 10 == 0:
+            if (i + 1) % 100 == 0:
                 print(
                     f"Batch {i+1}/{len(train_loader)}, Loss: {loss.item():.4f}, ETA for epoch: {timedelta(seconds=int(eta))}"
                 )
@@ -114,13 +121,27 @@ def main():
 
         # Validación
         model.eval()
+        start_time = time.time()
+
         with torch.no_grad():
             val_loss = 0.0
-            for inputs, targets in val_loader:
-                inputs, targets = inputs.to(device), targets.to(device)
-                outputs = model(inputs)
-                loss = criterion(outputs, targets)
+            for i, (bright, dark) in enumerate(val_loader):
+                bright, dark = bright.to(device), dark.to(device)
+                outputs = model(dark)
+                loss = criterion(outputs, bright)
                 val_loss += loss.item()
+
+                current_time = time.time()
+                elapsed_time = current_time - start_time
+                images_processed = (i + 1) * batch_size
+                total_images = len(val_loader.dataset)
+                eta = (
+                    elapsed_time / images_processed * (total_images - images_processed)
+                )
+                if (i + 1) % 100 == 0:
+                    print(
+                        f"Validation Batch {i+1}/{len(val_loader)}, Loss: {loss.item():.4f}, ETA for epoch: {timedelta(seconds=int(eta))}"
+                    )
 
         val_loss /= len(val_loader)
         print(f"Validation Loss: {val_loss:.4f}")
@@ -149,10 +170,13 @@ def main():
         print(f"ETA for total: {time_remaining}")
 
         # Guardar el modelo cada 10 épocas
-    if (epoch + 1) % 10 == 0:
-        save_path = f"model_epoch_{epoch+1}.pth"
-        torch.save(model.state_dict(), save_path)
-        print(f"Modelo guardado: {save_path}")
+        if (epoch + 1) % 10 == 0:
+            save_path = f"model_epoch_{epoch+1}.pth"
+            torch.save(model.state_dict(), save_path)
+            print(f"Modelo guardado: {save_path}")
+
+        # Actualizar el learning rate
+        scheduler.step()
 
     print("Training complete")
 

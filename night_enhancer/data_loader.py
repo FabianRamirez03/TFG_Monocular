@@ -36,7 +36,7 @@ def darken_transform(image, gamma_val=3, alpha_val=0.5):
 
 
 # Función para oscurecer manualmente la imagen
-def darken_image_manual(image, darken_factor=0.1):
+def darken_image_manual(image, darken_factor=0.15):
     # Convertir la imagen a un array de NumPy
     image_array = np.array(image)
 

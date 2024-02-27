@@ -25,7 +25,13 @@ transform = transforms.Compose(
 image_path = (
     "..\\datasets\\custom_dataset\\Unprocessed\\Garage-Dani-noche-1\\000000110.png"
 )
-input_image = Image.open(image_path).convert("RGB")
+
+image_path_2 = (
+    "..\\datasets\\custom_dataset\\Processed\\Barrael-Garage-noche\\000000048.png"
+)
+
+
+input_image = Image.open(image_path_2).convert("RGB")
 transformed_image = transform(input_image).to(device)
 
 # Añadir una dimensión de batch y pasar la imagen a través del modelo
