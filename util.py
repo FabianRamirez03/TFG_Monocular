@@ -4,6 +4,11 @@ import threading
 import csv
 from collections import Counter
 
+import torch
+from torchvision import transforms
+from night_enhancer.data_loader import DarkenerDataset
+from torchvision.transforms.functional import InterpolationMode
+
 ###############################################################################################################################
 
 # Esta función recibe como entrada un directorio con videos y obtiene los frames de cada uno de esos videos,
@@ -381,12 +386,64 @@ def cleaning_wrong_directories_pipeline():
     convert_videos_dir_to_frame()
 
 
-# cleaning_wrong_directories_pipeline()
-# create_csv()
-# update_csv()
-# csv_mainteinence()
-# find_and_remove_empty_directories()
-#  remove_accents_and_rename_directories()
-# convert_videos_dir_to_frame()
-# print_data_rows_counter()
-# print_label_counts()
+###############################################################################################################################
+
+
+def calculate_mean_std():
+    # Define tus transformaciones sin la normalización
+    transform = transforms.Compose(
+        [
+            transforms.Resize(232, interpolation=InterpolationMode.BILINEAR),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+        ]
+    )
+
+    # Carga del dataset
+    dataset = DarkenerDataset(
+        csv_file=".\\frames_labels.csv",
+        root_dir=".\\datasets\\custom_dataset\\Processed",
+        transform=transform,
+    )
+
+    loader = torch.utils.data.DataLoader(
+        dataset, batch_size=64, shuffle=False, num_workers=4
+    )
+
+    mean = 0.0
+    std = 0.0
+    nb_samples = 0.0
+    for bright, dark in loader:
+        bright_flat = bright.view(bright.size(0), bright.size(1), -1)
+        dark_flat = dark.view(dark.size(0), dark.size(1), -1)
+
+        mean += bright_flat.mean(2).sum(0) + dark_flat.mean(2).sum(0)
+        std += bright_flat.std(2).sum(0) + dark_flat.std(2).sum(0)
+        nb_samples += bright_flat.size(0) + dark_flat.size(0)
+
+    mean /= nb_samples
+    std /= nb_samples
+
+    print(f"Mean: {mean}")
+    print(f"Std: {std}")
+
+
+###############################################################################################################################
+
+
+def main():
+
+    # cleaning_wrong_directories_pipeline()
+    # create_csv()
+    # update_csv()
+    # csv_mainteinence()
+    # find_and_remove_empty_directories()
+    #  remove_accents_and_rename_directories()
+    # convert_videos_dir_to_frame()
+    # print_data_rows_counter()
+    # print_label_counts()
+    calculate_mean_std()
+
+
+if __name__ == "__main__":
+    main()

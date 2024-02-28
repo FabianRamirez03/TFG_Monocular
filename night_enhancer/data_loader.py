@@ -7,6 +7,7 @@ import torch
 import torchvision.transforms.functional as TF
 from torchvision import transforms
 import matplotlib.pyplot as plt
+from torchvision.transforms.functional import InterpolationMode
 
 
 # Function to perform gamma correction using PIL
@@ -36,7 +37,7 @@ def darken_transform(image, gamma_val=3, alpha_val=0.5):
 
 
 # Función para oscurecer manualmente la imagen
-def darken_image_manual(image, darken_factor=0.15):
+def darken_image_manual(image, darken_factor=0.08):
     # Convertir la imagen a un array de NumPy
     image_array = np.array(image)
 

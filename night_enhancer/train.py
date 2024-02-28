@@ -7,12 +7,66 @@ from datetime import datetime, timedelta
 from torchvision.transforms.functional import InterpolationMode
 import time
 from torch.optim.lr_scheduler import StepLR
+import torchvision.transforms.functional as TF
+import matplotlib.pyplot as plt
+from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
 
 from data_loader import DarkenerDataset
 from model import DarkEnhancementNet
 
+
+def show_images(bright, dark):
+    # Suponiendo que 'bright' y 'dark' son tensores de PyTorch con shape [B, C, H, W]
+    # Donde B es el tamaño del batch, C es el número de canales, y H, W son la altura y anchura
+    global mean, std
+
+    # Desnormalizar las imágenes
+    bright_denorm = denormalize(bright[0].cpu(), mean, std)
+    dark_denorm = denormalize(dark[0].cpu(), mean, std)
+
+    # Convertir los tensores a imágenes de PIL para visualizarlas
+    bright_img_norm = TF.to_pil_image(bright[0].cpu())
+    dark_img_norm = TF.to_pil_image(dark[0].cpu())
+    bright_img_denorm = TF.to_pil_image(bright_denorm)
+    dark_img_denorm = TF.to_pil_image(dark_denorm)
+
+    # Visualizar las imágenes usando matplotlib
+    fig, axs = plt.subplots(2, 2, figsize=(10, 8))
+
+    # Mostrar imágenes normalizadas
+    axs[0, 0].imshow(bright_img_norm)
+    axs[0, 0].set_title("Bright Image Normalized")
+    axs[0, 0].axis("off")
+
+    axs[0, 1].imshow(dark_img_norm)
+    axs[0, 1].set_title("Dark Image Normalized")
+    axs[0, 1].axis("off")
+
+    # Mostrar imágenes desnormalizadas
+    axs[1, 0].imshow(bright_img_denorm)
+    axs[1, 0].set_title("Bright Image Denormalized")
+    axs[1, 0].axis("off")
+
+    axs[1, 1].imshow(dark_img_denorm)
+    axs[1, 1].set_title("Dark Image Denormalized")
+    axs[1, 1].axis("off")
+
+    plt.show()
+
+
+def denormalize(tensor, mean, std):
+    # Clonamos el tensor para no hacer cambios in-place
+    tensor = tensor.clone()
+    mean = torch.as_tensor(mean, dtype=tensor.dtype, device=tensor.device)
+    std = torch.as_tensor(std, dtype=tensor.dtype, device=tensor.device)
+    tensor.mul_(std[:, None, None]).add_(
+        mean[:, None, None]
+    )  # Multiplicar y sumar para desnormalizar
+    return tensor
+
+
 # Parámetros
-batch_size = 4
+batch_size = 25
 num_epochs = 200
 patience = 10  # Número de épocas para esperar después de una mejora antes de detener el entrenamiento
 epochs_no_improve = 0
@@ -20,6 +74,9 @@ learning_rate = 0.0005
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 workers = 15
 prefecth = 5
+std = [0.1714, 0.1724, 0.1898]
+mean = [0.2534, 0.2483, 0.2497]
+print_interval = 50
 
 # Transformaciones
 transform = transforms.Compose(
@@ -30,8 +87,8 @@ transform = transforms.Compose(
         transforms.CenterCrop(224),
         # Convertir la imagen a un tensor de PyTorch.
         transforms.ToTensor(),
-        # Normalizar con los valores medios y desviaciones estándar de ImageNet.
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        # Normalizar con los valores medios y desviaciones estándar de ImageNet
+        # transforms.Normalize(std=std, mean=mean),
     ]
 )
 
@@ -73,6 +130,7 @@ def main():
 
     # Función de pérdida y optimizador
     criterion = nn.MSELoss()
+    ms_ssim_loss = MS_SSIM(data_range=1.0, size_average=True)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     # Inicializar el Learning Rate Scheduler
@@ -87,13 +145,18 @@ def main():
         # return original_image, darkened_image
         for i, (bright, dark) in enumerate(train_loader):
             bright, dark = bright.to(device), dark.to(device)
-            # print(f"Bright size: {bright.size()}")
-            # print(f"dark size: {dark.size()}")
+
+            if i == 0:  # Verificar que es el primer batch
+                show_images(bright, dark)
+                input(
+                    "Presiona Enter para continuar con el entrenamiento..."
+                )  # Espera a que el usuario presione Enter
+                raise Exception("Exit")
 
             # Forward pass
             outputs = model(dark)
-            # print(f"outputs size: {outputs.size()}")
-            loss = criterion(outputs, bright)
+
+            loss = 1 - ms_ssim_loss(outputs, bright)
 
             # Backward and optimize
             optimizer.zero_grad()
@@ -109,7 +172,7 @@ def main():
             total_images = len(train_loader.dataset)
             eta = elapsed_time / images_processed * (total_images - images_processed)
 
-            if (i + 1) % 100 == 0:
+            if (i + 1) % print_interval == 0:
                 print(
                     f"Batch {i+1}/{len(train_loader)}, Loss: {loss.item():.4f}, ETA for epoch: {timedelta(seconds=int(eta))}"
                 )
@@ -128,7 +191,7 @@ def main():
             for i, (bright, dark) in enumerate(val_loader):
                 bright, dark = bright.to(device), dark.to(device)
                 outputs = model(dark)
-                loss = criterion(outputs, bright)
+                loss = 1 - ms_ssim_loss(outputs, bright)
                 val_loss += loss.item()
 
                 current_time = time.time()
@@ -138,7 +201,7 @@ def main():
                 eta = (
                     elapsed_time / images_processed * (total_images - images_processed)
                 )
-                if (i + 1) % 100 == 0:
+                if (i + 1) % print_interval == 0:
                     print(
                         f"Validation Batch {i+1}/{len(val_loader)}, Loss: {loss.item():.4f}, ETA for epoch: {timedelta(seconds=int(eta))}"
                     )
@@ -166,11 +229,16 @@ def main():
         # ETA para la siguiente época
         time_elapsed = time.time() - start_time
         time_remaining = (num_epochs - epoch - 1) * time_elapsed
-        print(f"ETA for next epoch: {time_elapsed}")
-        print(f"ETA for total: {time_remaining}")
+
+        # Convertir segundos en formato de horas, minutos y segundos
+        time_elapsed_formatted = str(timedelta(seconds=int(time_elapsed)))
+        time_remaining_formatted = str(timedelta(seconds=int(time_remaining)))
+
+        print(f"ETA for next epoch: {time_elapsed_formatted}")
+        print(f"ETA for total: {time_remaining_formatted}")
 
         # Guardar el modelo cada 10 épocas
-        if (epoch + 1) % 10 == 0:
+        if (epoch + 1) % 5 == 0:
             save_path = f"model_epoch_{epoch+1}.pth"
             torch.save(model.state_dict(), save_path)
             print(f"Modelo guardado: {save_path}")

@@ -4,63 +4,107 @@ from torchvision import models
 from torchvision.models import ResNet152_Weights
 
 
-class DarkEnhancementNet(nn.Module):
-    def __init__(self, num_classes=3):
-        super(DarkEnhancementNet, self).__init__()
-        # Utilizar ResNet preentrenado como base
-        resnet = models.resnet152(weights=ResNet152_Weights.IMAGENET1K_V2)
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-        # Afinar algunas de las últimas capas convolucionales
-        self.base_layers = nn.Sequential(*list(resnet.children())[:-2])
 
-        # Módulo de atención
-        self.attention = nn.Sequential(
-            nn.Conv2d(2048, 1024, kernel_size=1),
-            nn.BatchNorm2d(1024),
-            nn.ReLU(),
-            nn.Conv2d(1024, 2048, kernel_size=1),
-            nn.Sigmoid(),
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, stride=1, downsample=None):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=3,
+            stride=stride,
+            padding=1,
+            bias=False,
         )
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(
+            out_channels, out_channels, kernel_size=3, padding=1, bias=False
+        )
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.downsample = downsample
 
-        # Capas de realce con normalización por lotes
-        self.enhancement_layers = nn.Sequential(
-            nn.Conv2d(2048, 1024, kernel_size=1),
-            nn.BatchNorm2d(1024),
-            nn.ReLU(),
-            nn.Upsample(scale_factor=2),  # Upsampling a 14x14
-            nn.Conv2d(1024, 512, kernel_size=3, padding=1),
-            nn.BatchNorm2d(512),
-            nn.ReLU(),
-            nn.Upsample(scale_factor=2),  # Upsampling a 28x28
-            nn.Conv2d(512, 256, kernel_size=3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.Upsample(scale_factor=2),  # Upsampling a 56x56
-            nn.Conv2d(256, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Upsample(scale_factor=2),  # Upsampling a 112x112
-            nn.Conv2d(128, 64, kernel_size=3, padding=1),
+    def forward(self, x):
+        identity = x
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        out += identity
+        out = self.relu(out)
+        return out
+
+
+class DecomNet(nn.Module):
+    def __init__(self):
+        super(DecomNet, self).__init__()
+        self.initial = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False),
             nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.Upsample(scale_factor=2),  # Upsampling a 224x224
-            nn.Conv2d(64, num_classes, kernel_size=3, padding=1),
-            nn.Sigmoid(),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+        )
+        self.residual_blocks = nn.Sequential(
+            ResidualBlock(64, 64),
+            ResidualBlock(64, 64),
+            # You can add more residual blocks here
+        )
+        self.final = nn.Sequential(
+            nn.Conv2d(64, 3, kernel_size=3, padding=1),
+            nn.Sigmoid(),  # Assuming the output is an image
         )
 
     def forward(self, x):
-        # Pasar la entrada a través de las capas base de ResNet
-        # print(f"x initial size: {x.size()}")
-        x = self.base_layers(x)
-        # print(f"x after base layers size: {x.size()}")
-
-        # Módulo de atención
-        attention = self.attention(x)
-        x = x * attention
-        # print(f"x after attention size: {x.size()}")
-
-        # Pasar a través de las capas de realce
-        x = self.enhancement_layers(x)
-        # print(f"x after enhancement size: {x.size()}")
-
+        x = self.initial(x)
+        x = self.residual_blocks(x)
+        x = self.final(x)
         return x
+
+
+class IllumNet(nn.Module):
+    def __init__(self):
+        super(IllumNet, self).__init__()
+        self.initial = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+        )
+        self.residual_blocks = nn.Sequential(
+            ResidualBlock(64, 64),
+            # Fewer residual blocks compared to DecomNet
+        )
+        self.final = nn.Sequential(
+            nn.Conv2d(
+                64, 1, kernel_size=3, padding=1
+            ),  # Assuming we want a 1-channel illumination map
+            nn.Sigmoid(),  # The illumination map values should be between [0,1]
+        )
+
+    def forward(self, x):
+        x = self.initial(x)
+        x = self.residual_blocks(x)
+        x = self.final(x)
+        return x
+
+
+class DarkEnhancementNet(nn.Module):
+    def __init__(self):
+        super(DarkEnhancementNet, self).__init__()
+        self.decom_net = DecomNet()
+        self.illum_net = IllumNet()  # Define the illumination network
+
+    def forward(self, x):
+        reflectance = self.decom_net(x)
+        illumination = self.illum_net(x)
+        return reflectance, illumination
