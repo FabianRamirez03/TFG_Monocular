@@ -25,36 +25,18 @@ def show_images(normalized_tensor, output, title="Image"):
     image_normalized_pil = TF.to_pil_image(normalized_tensor)
     output_normalized_pil = TF.to_pil_image(output)
 
-    # Desnormalizar tensor
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
-    denormalized_tensor = denormalize(normalized_tensor, mean, std)
-    denormalized_output = denormalize(output, mean, std)
-
-    # Convertir tensor desnormalizado a imagen PIL para visualización
-    image_denormalized_pil = TF.to_pil_image(denormalized_tensor)
-    output_denormalized_pil = TF.to_pil_image(denormalized_output)
-
     # Visualizar las imágenes usando matplotlib
     fig, axs = plt.subplots(2, 2, figsize=(10, 8))
 
     # Mostrar imágenes normalizadas
     axs[0, 0].imshow(image_normalized_pil)
-    axs[0, 0].set_title("Input normalized")
+    axs[0, 0].set_title("Input")
     axs[0, 0].axis("off")
-
-    axs[0, 1].imshow(image_denormalized_pil)
-    axs[0, 1].set_title("Input denormalized")
-    axs[0, 1].axis("off")
 
     # Mostrar imágenes desnormalizadas
     axs[1, 0].imshow(output_normalized_pil)
-    axs[1, 0].set_title("Output normalized")
+    axs[1, 0].set_title("Output")
     axs[1, 0].axis("off")
-
-    axs[1, 1].imshow(output_denormalized_pil)
-    axs[1, 1].set_title("Output denormalized")
-    axs[1, 1].axis("off")
 
     plt.show()
 
@@ -79,21 +61,12 @@ def show_images_dataloader(bright, dark):
 
     # Mostrar imágenes normalizadas
     axs[0, 0].imshow(bright_img_norm)
-    axs[0, 0].set_title("Bright Image Normalized")
+    axs[0, 0].set_title("Input Image ")
     axs[0, 0].axis("off")
 
     axs[0, 1].imshow(dark_img_norm)
-    axs[0, 1].set_title("Output Image Normalized")
+    axs[0, 1].set_title("Output Image ")
     axs[0, 1].axis("off")
-
-    # Mostrar imágenes desnormalizadas
-    axs[1, 0].imshow(bright_img_denorm)
-    axs[1, 0].set_title("Bright Image Denormalized")
-    axs[1, 0].axis("off")
-
-    axs[1, 1].imshow(dark_img_denorm)
-    axs[1, 1].set_title("Output Image Denormalized")
-    axs[1, 1].axis("off")
 
     plt.show()
 
@@ -102,8 +75,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # Carga del modelo
 model = DarkEnhancementNet()
 model = model.to(device)
-# model.load_state_dict(torch.load("best_model.pth"))  # Carga los pesos entrenados
-model.load_state_dict(torch.load("best_model.pth"))
+model.load_state_dict(torch.load("best_model.pth"))  # Carga los pesos entrenados
+# model.load_state_dict(torch.load("model_epoch_10.pth"))
 model.eval()  # Modo de evaluación
 
 # Transformación para la imagen de entrada
@@ -111,10 +84,7 @@ mean = [0.485, 0.456, 0.406]
 std = [0.229, 0.224, 0.225]
 transform = transforms.Compose(
     [
-        transforms.Resize(232),
-        transforms.CenterCrop(224),
         transforms.ToTensor(),
-        transforms.Normalize(mean=mean, std=std),
     ]
 )
 
@@ -123,15 +93,13 @@ image_path = (
     "..\\datasets\\custom_dataset\\Unprocessed\\Garage-Dani-noche-1\\000000110.png"
 )
 
-image_path_2 = (
-    "..\\datasets\\custom_dataset\\Processed\\Barrael-Garage-noche\\000000048.png"
-)
+image_path_2 = "..\\datasets\\custom_dataset\\Processed_cropped\\Barrael-Garage-noche\\000000048.png"
 
 image_path_3 = (
     "..\\datasets\\custom_dataset\\Unprocessed\\Guti-Garage-noche\\000000075.png"
 )
 
-input_image = Image.open(image_path_3).convert("RGB")
+input_image = Image.open(image_path).convert("RGB")
 transformed_image = transform(input_image).to(device)
 
 # Añadir una dimensión de batch y pasar la imagen a través del modelo
@@ -140,27 +108,31 @@ with torch.no_grad():
     output = model(input_batch)
 
 # Mostrar las imágenes de entrada y salida
-# show_images(transformed_image, output.squeeze(0), title="Input")
+show_images(transformed_image, output.squeeze(0), title="Input")
 
 
 ##########################################################################################################################################
+def show_dataloader():
 
-# Carga del dataset
-dataset = DarkenerDataset(
-    csv_file="..\\frames_labels.csv",
-    root_dir="..\\datasets\\custom_dataset\\Processed",
-    transform=transform,
-)
+    # Carga del dataset
+    dataset = DarkenerDataset(
+        csv_file="..\\frames_labels.csv",
+        root_dir="..\\datasets\\custom_dataset\\Processed_cropped",
+        transform=transform,
+    )
 
-# Data loaders
-data_loader = DataLoader(
-    dataset,
-    batch_size=1,
-    shuffle=True,
-)
+    # Data loaders
+    data_loader = DataLoader(
+        dataset,
+        batch_size=1,
+        shuffle=True,
+    )
 
-for i, (bright, dark) in enumerate(data_loader):
-    bright, dark = bright.to(device), dark.to(device)
-    outputs = model(dark)
-    show_images_dataloader(bright, outputs)
-    break
+    for i, (bright, dark) in enumerate(data_loader):
+        bright, dark = bright.to(device), dark.to(device)
+        outputs = model(dark)
+        show_images_dataloader(bright, outputs)
+        break
+
+
+# show_dataloader()

@@ -1,13 +1,14 @@
 import os
 import pandas as pd
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 from torch.utils.data import Dataset
 import torch
 import torchvision.transforms.functional as TF
 from torchvision import transforms
 import matplotlib.pyplot as plt
 from torchvision.transforms.functional import InterpolationMode
+import random
 
 
 # Function to perform gamma correction using PIL
@@ -36,20 +37,76 @@ def darken_transform(image, gamma_val=3, alpha_val=0.5):
     return image
 
 
+def add_artificial_lights_to_dark_image(darkened_array):
+    num_lights = random.randint(0, 5)  # Número aleatorio de fuentes de luz
+    # Crear una imagen PIL a partir del array para poder dibujar sobre ella
+    darkened_image = Image.fromarray(darkened_array)
+    draw = ImageDraw.Draw(
+        darkened_image, "RGBA"
+    )  # Utilizar modo RGBA para transparencia
+
+    for _ in range(num_lights):
+        # Posición y propiedades de la luz artificial
+        light_position = (
+            np.random.randint(0, darkened_array.shape[1]),
+            np.random.randint(0, darkened_array.shape[0] / 3),
+        )
+        light_intensity = np.random.randint(180, 255)
+        light_radius = np.random.randint(20, 200)
+
+        # Crear un gradiente radial para la luz
+        for radius in range(light_radius, 0, -5):
+            alpha = int(
+                (255 * (light_radius - radius) ** 3) / light_radius**3
+            )  # Transparencia más tenue hacia los bordes
+            draw.ellipse(
+                (
+                    light_position[0] - radius,
+                    light_position[1] - radius,
+                    light_position[0] + radius,
+                    light_position[1] + radius,
+                ),
+                fill=(light_intensity, light_intensity, light_intensity, alpha),
+            )
+
+    return np.array(darkened_image)
+
+
 # Función para oscurecer manualmente la imagen
 def darken_image_manual(image, darken_factor=0.08):
-    # Convertir la imagen a un array de NumPy
-    image_array = np.array(image)
+    """
+    Oscurece la imagen de entrada y simula variabilidad en la iluminación y fuentes de luz artificiales.
 
-    # Asegurarse de que la imagen esté en el rango correcto y tenga tres dimensiones para RGB
-    if image_array.ndim != 3 or image_array.shape[2] != 3:
-        raise ValueError("La imagen debe tener tres dimensiones para RGB")
+    Args:
+    image (PIL.Image): La imagen de entrada.
+    darken_factor (float): Factor de oscurecimiento base de la imagen.
+    Returns:
+    PIL.Image: Imagen oscurecida con modificaciones.
+    """
+    # Convertir la imagen a un array de NumPy y oscurecerla
+    image_array = np.array(image).astype(float)
+    height = image_array.shape[0]
 
-    # Multiplicar los valores de los píxeles por el factor de oscurecimiento
-    # Convertir a float para la operación y luego a uint8 para evitar problemas de desbordamiento
-    darkened_array = np.clip(image_array.astype(float) * darken_factor, 0, 255).astype(
+    # Crear un gradiente vertical para el factor de oscurecimiento
+    gradient = np.linspace(0.01, 2, height).reshape(height, 1, 1)
+
+    # Modificar el darken_factor a lo largo de la imagen usando el gradiente
+    dynamic_darken_factor = darken_factor * gradient
+
+    # Aplicar el gradiente de oscurecimiento de manera diferente en la mitad superior e inferior
+    darkened_array = image_array * dynamic_darken_factor
+
+    # Asegurar que los valores estén dentro de los límites aceptables
+    darkened_array = np.clip(darkened_array, 0, 255).astype(np.uint8)
+
+    # Simulación de variabilidad en la iluminación
+    brightness_variation = random.uniform(0.5, 1.5)
+    darkened_array = np.clip(darkened_array * brightness_variation, 0, 255).astype(
         np.uint8
     )
+
+    # Función para añadir luces artificiales aquí, si es necesario
+    darkened_array = add_artificial_lights_to_dark_image(darkened_array)
 
     # Convertir el array oscurecido de vuelta a una imagen PIL y retornar
     return Image.fromarray(darkened_array)
@@ -109,18 +166,20 @@ class DarkenerDataset(Dataset):
 
 
 def test_dataset():
-    # Ruta al archivo CSV con anotaciones y al directorio de imágenes
-    csv_file = "..\\frames_labels.csv"
-    root_dir = "..\\datasets\\custom_dataset\\Processed"
 
-    # Crear una instancia del dataset
     dataset = DarkenerDataset(
-        csv_file=csv_file,
-        root_dir=root_dir,
+        csv_file="..\\frames_labels.csv",
+        root_dir="..\\datasets\\custom_dataset\\Processed",
+        transform=transforms.Compose(
+            [
+                transforms.ToTensor(),  # Asumiendo que tu clase DarkenerDataset necesita esta transformación
+            ]
+        ),
     )
 
     # Seleccionar una imagen para probar (por ejemplo, la primera imagen del dataset)
-    original_image, darkened_image = dataset[0]
+    i = random.randint(0, len(dataset) - 1)  # Obtiene un índice aleatorio
+    original_image, darkened_image = dataset[i]
 
     if torch.is_tensor(original_image):
         original_image = original_image.permute(1, 2, 0).numpy()
@@ -143,4 +202,8 @@ def test_dataset():
     plt.show()
 
 
-# test_dataset()
+while True:
+    test_dataset()
+    a = input("E para salir, cualquier tecla continuar \n")
+    if a.lower() == "e":
+        break

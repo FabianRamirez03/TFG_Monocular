@@ -66,14 +66,14 @@ def denormalize(tensor, mean, std):
 
 
 # Parámetros
-batch_size = 25
+batch_size = 64
 num_epochs = 200
 patience = 10  # Número de épocas para esperar después de una mejora antes de detener el entrenamiento
 epochs_no_improve = 0
 learning_rate = 0.0005
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-workers = 15
-prefecth = 5
+workers = 20
+prefecth = 10
 std = [0.1714, 0.1724, 0.1898]
 mean = [0.2534, 0.2483, 0.2497]
 print_interval = 50
@@ -82,9 +82,9 @@ print_interval = 50
 transform = transforms.Compose(
     [
         # Redimensionar la imagen a 232x232. Ajustamos ligeramente el tamaño según tu descripción.
-        transforms.Resize(232, interpolation=InterpolationMode.BILINEAR),
+        # transforms.Resize(232, interpolation=InterpolationMode.BILINEAR),
         # Recortar el centro de la imagen a 224x224.
-        transforms.CenterCrop(224),
+        # transforms.CenterCrop(224),
         # Convertir la imagen a un tensor de PyTorch.
         transforms.ToTensor(),
         # Normalizar con los valores medios y desviaciones estándar de ImageNet
@@ -95,7 +95,7 @@ transform = transforms.Compose(
 # Carga del dataset
 dataset = DarkenerDataset(
     csv_file="..\\frames_labels.csv",
-    root_dir="..\\datasets\\custom_dataset\\Processed",
+    root_dir="..\\datasets\\custom_dataset\\Processed_cropped",
     transform=transform,
 )
 
@@ -124,42 +124,38 @@ val_loader = DataLoader(
 def main():
     # Modelo
     print("Begin train")
-    model = DarkEnhancementNet()
-    model = model.to(device)
+    model = DarkEnhancementNet().to(device)
     print("Model loaded")
 
     # Función de pérdida y optimizador
-    criterion = nn.MSELoss()
-    ms_ssim_loss = MS_SSIM(data_range=1.0, size_average=True)
+    criterion = MS_SSIM(data_range=1.0, size_average=True).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
-    # Inicializar el Learning Rate Scheduler
     scheduler = StepLR(optimizer, step_size=50, gamma=0.1)
 
     # Entrenamiento
     best_loss = float("inf")
+
     for epoch in range(num_epochs):
+        print(f"Initializing epoch {epoch+1}/{num_epochs}")
+
         start_time = time.time()
         model.train()
         running_loss = 0.0
-        # return original_image, darkened_image
+        print(f"Enumerating train_loader")
         for i, (bright, dark) in enumerate(train_loader):
             bright, dark = bright.to(device), dark.to(device)
 
+            """
             if i == 0:  # Verificar que es el primer batch
                 show_images(bright, dark)
                 input(
                     "Presiona Enter para continuar con el entrenamiento..."
                 )  # Espera a que el usuario presione Enter
                 raise Exception("Exit")
-
-            # Forward pass
-            outputs = model(dark)
-
-            loss = 1 - ms_ssim_loss(outputs, bright)
-
-            # Backward and optimize
+            """
             optimizer.zero_grad()
+            enhanced_image = model(dark)
+            loss = 1 - criterion(enhanced_image, bright)
             loss.backward()
             optimizer.step()
 
@@ -190,8 +186,9 @@ def main():
             val_loss = 0.0
             for i, (bright, dark) in enumerate(val_loader):
                 bright, dark = bright.to(device), dark.to(device)
-                outputs = model(dark)
-                loss = 1 - ms_ssim_loss(outputs, bright)
+
+                enhanced_image = model(dark)
+                loss = 1 - criterion(enhanced_image, bright)
                 val_loss += loss.item()
 
                 current_time = time.time()

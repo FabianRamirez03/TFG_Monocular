@@ -6,6 +6,7 @@ from collections import Counter
 
 import torch
 from torchvision import transforms
+from PIL import Image
 from night_enhancer.data_loader import DarkenerDataset
 from torchvision.transforms.functional import InterpolationMode
 
@@ -431,6 +432,55 @@ def calculate_mean_std():
 ###############################################################################################################################
 
 
+def process_and_save_images():
+
+    input_dir = "datasets\\custom_dataset\\Processed"
+    output_dir = "datasets\\custom_dataset\\Processed_cropped"
+    # Definir las transformaciones
+    transformations = transforms.Compose(
+        [
+            transforms.Resize(232, interpolation=Image.BILINEAR),
+            transforms.CenterCrop(224),
+        ]
+    )
+
+    # Crear el directorio de salida si no existe
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    # Recorrer el directorio de entrada
+    for subdir, dirs, files in os.walk(input_dir):
+        for file in files:
+            # Ignorar archivos que no sean imágenes
+            if not file.lower().endswith((".png", ".jpg", ".jpeg")):
+                continue
+
+            # Construir la ruta completa del archivo
+            file_path = os.path.join(subdir, file)
+
+            # Cargar la imagen
+            with Image.open(file_path) as img:
+                # Aplicar las transformaciones
+                transformed_img = transformations(img)
+
+            # Construir la ruta del subdirectorio en el directorio de salida
+            relative_path = os.path.relpath(subdir, input_dir)
+            save_subdir = os.path.join(output_dir, relative_path)
+
+            # Crear el subdirectorio si no existe
+            if not os.path.exists(save_subdir):
+                os.makedirs(save_subdir)
+
+            # Guardar la imagen transformada
+            save_path = os.path.join(save_subdir, file)
+            transformed_img.save(save_path)
+
+            # print(f"Image saved to {save_path}")
+
+
+###############################################################################################################################
+
+
 def main():
 
     # cleaning_wrong_directories_pipeline()
@@ -442,7 +492,8 @@ def main():
     # convert_videos_dir_to_frame()
     # print_data_rows_counter()
     # print_label_counts()
-    calculate_mean_std()
+    # calculate_mean_std()
+    process_and_save_images()
 
 
 if __name__ == "__main__":

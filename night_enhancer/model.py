@@ -2,11 +2,9 @@ import torch
 import torch.nn as nn
 from torchvision import models
 from torchvision.models import ResNet152_Weights
-
-
-import torch
-import torch.nn as nn
 import torch.nn.functional as F
+
+import math
 
 
 class ResidualBlock(nn.Module):
@@ -45,6 +43,21 @@ class ResidualBlock(nn.Module):
         return out
 
 
+class UpsampleBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(UpsampleBlock, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        x = F.interpolate(x, scale_factor=2, mode="bilinear", align_corners=False)
+        x = self.conv(x)
+        x = self.bn(x)
+        x = self.relu(x)
+        return x
+
+
 class DecomNet(nn.Module):
     def __init__(self):
         super(DecomNet, self).__init__()
@@ -57,16 +70,24 @@ class DecomNet(nn.Module):
         self.residual_blocks = nn.Sequential(
             ResidualBlock(64, 64),
             ResidualBlock(64, 64),
+            ResidualBlock(64, 64),
             # You can add more residual blocks here
         )
+
+        self.upsample_blocks = nn.Sequential(
+            UpsampleBlock(64, 64),
+            UpsampleBlock(64, 32),
+        )
+
         self.final = nn.Sequential(
-            nn.Conv2d(64, 3, kernel_size=3, padding=1),
+            nn.Conv2d(32, 3, kernel_size=3, padding=1),
             nn.Sigmoid(),  # Assuming the output is an image
         )
 
     def forward(self, x):
         x = self.initial(x)
         x = self.residual_blocks(x)
+        x = self.upsample_blocks(x)
         x = self.final(x)
         return x
 
@@ -82,11 +103,16 @@ class IllumNet(nn.Module):
         )
         self.residual_blocks = nn.Sequential(
             ResidualBlock(64, 64),
+            ResidualBlock(64, 64),
             # Fewer residual blocks compared to DecomNet
+        )
+        self.upsample_blocks = nn.Sequential(
+            UpsampleBlock(64, 64),
+            UpsampleBlock(64, 32),
         )
         self.final = nn.Sequential(
             nn.Conv2d(
-                64, 1, kernel_size=3, padding=1
+                32, 1, kernel_size=3, padding=1
             ),  # Assuming we want a 1-channel illumination map
             nn.Sigmoid(),  # The illumination map values should be between [0,1]
         )
@@ -94,6 +120,7 @@ class IllumNet(nn.Module):
     def forward(self, x):
         x = self.initial(x)
         x = self.residual_blocks(x)
+        x = self.upsample_blocks(x)
         x = self.final(x)
         return x
 
@@ -102,9 +129,13 @@ class DarkEnhancementNet(nn.Module):
     def __init__(self):
         super(DarkEnhancementNet, self).__init__()
         self.decom_net = DecomNet()
-        self.illum_net = IllumNet()  # Define the illumination network
+        self.illum_net = IllumNet()
 
     def forward(self, x):
         reflectance = self.decom_net(x)
         illumination = self.illum_net(x)
-        return reflectance, illumination
+        enhanced_image = reflectance * illumination
+        enhanced_image = F.interpolate(
+            enhanced_image, size=(224, 224), mode="bilinear", align_corners=False
+        )
+        return enhanced_image
