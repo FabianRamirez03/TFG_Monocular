@@ -5,6 +5,7 @@ from torchvision.models import ResNet152_Weights
 import torch.nn.functional as F
 
 import math
+import matplotlib.pyplot as plt
 
 
 class ResidualBlock(nn.Module):
@@ -125,17 +126,73 @@ class IllumNet(nn.Module):
         return x
 
 
+class DnCnnBlock(nn.Module):
+    def __init__(
+        self, in_channels, out_channels, kernel_size=3, padding=1, batch_norm=True
+    ):
+        super(DnCnnBlock, self).__init__()
+        layers = [
+            nn.Conv2d(
+                in_channels,
+                out_channels,
+                kernel_size,
+                padding=padding,
+                bias=not batch_norm,
+            )
+        ]
+        if batch_norm:
+            layers.append(nn.BatchNorm2d(out_channels))
+        layers.append(nn.ReLU(inplace=True))
+        self.dncnn_block = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.dncnn_block(x)
+
+
+class DenoiseNet(nn.Module):
+    def __init__(self, num_layers=17, num_features=64):
+        super(DenoiseNet, self).__init__()
+        layers = [
+            DnCnnBlock(3, num_features, batch_norm=False)
+        ]  # First layer without batch normalization
+        for _ in range(num_layers - 2):
+            layers.append(DnCnnBlock(num_features, num_features))
+        layers.append(
+            nn.Conv2d(num_features, 3, kernel_size=3, padding=1)
+        )  # Final layer without ReLU
+        self.denoise_net = nn.Sequential(*layers)
+
+    def forward(self, x):
+        out = self.denoise_net(x)
+        return x + out  # Residual learning
+
+
 class DarkEnhancementNet(nn.Module):
     def __init__(self):
         super(DarkEnhancementNet, self).__init__()
         self.decom_net = DecomNet()
         self.illum_net = IllumNet()
+        self.denoise_net = DenoiseNet()
 
-    def forward(self, x):
+    def forward(self, x, debug=False):
         reflectance = self.decom_net(x)
         illumination = self.illum_net(x)
         enhanced_image = reflectance * illumination
         enhanced_image = F.interpolate(
             enhanced_image, size=(224, 224), mode="bilinear", align_corners=False
         )
+
+        if debug:
+            # Asegúrate de que el tensor esté en el rango de 0 a 1 y en el CPU para visualización
+            illum_map = (
+                illumination.detach().cpu().squeeze(0)
+            )  # Asumiendo que el batch size es 1
+            plt.imshow(
+                illum_map[0], cmap="gray"
+            )  # [0] para seleccionar el primer canal si es necesario
+            plt.title("Illumination Map")
+            plt.colorbar()
+            plt.show()
+
+        # denoised_image = self.denoise_net(enhanced_image)  # Aplicar la red de denoising
         return enhanced_image

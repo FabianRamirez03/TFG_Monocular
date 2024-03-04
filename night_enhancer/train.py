@@ -66,17 +66,17 @@ def denormalize(tensor, mean, std):
 
 
 # Parámetros
-batch_size = 64
+batch_size = 16
 num_epochs = 200
 patience = 10  # Número de épocas para esperar después de una mejora antes de detener el entrenamiento
 epochs_no_improve = 0
-learning_rate = 0.0005
+learning_rate = 0.001
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 workers = 20
-prefecth = 10
+prefecth = 20
 std = [0.1714, 0.1724, 0.1898]
 mean = [0.2534, 0.2483, 0.2497]
-print_interval = 50
+print_interval = 25
 
 # Transformaciones
 transform = transforms.Compose(
@@ -170,8 +170,10 @@ def main():
 
             if (i + 1) % print_interval == 0:
                 print(
-                    f"Batch {i+1}/{len(train_loader)}, Loss: {loss.item():.4f}, ETA for epoch: {timedelta(seconds=int(eta))}"
+                    f"\rBatch {i+1}/{len(train_loader)}, Loss: {loss.item():.4f}, ETA for epoch: {timedelta(seconds=int(eta))}",
+                    end="",
                 )
+        print("")
 
         epoch_loss = running_loss / len(train_loader)
         print(
@@ -200,9 +202,11 @@ def main():
                 )
                 if (i + 1) % print_interval == 0:
                     print(
-                        f"Validation Batch {i+1}/{len(val_loader)}, Loss: {loss.item():.4f}, ETA for epoch: {timedelta(seconds=int(eta))}"
+                        f"\rValidation Batch {i+1}/{len(val_loader)}, Loss: {loss.item():.4f}, ETA for epoch: {timedelta(seconds=int(eta))}",
+                        end="",
                     )
 
+        print("")
         val_loss /= len(val_loader)
         print(f"Validation Loss: {val_loss:.4f}")
 
