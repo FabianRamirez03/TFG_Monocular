@@ -68,16 +68,16 @@ def show_images_dataloader(original, output, original_processed):
     axs[0, 0].set_title("Original Image ")
     axs[0, 0].axis("off")
 
-    axs[0, 1].imshow(output_img_norm)
-    axs[0, 1].set_title("Output Image ")
+    axs[0, 1].imshow(original_processed_img_norm)
+    axs[0, 1].set_title("Post Process input Image")
     axs[0, 1].axis("off")
 
-    axs[1, 0].imshow(post_processed_image)
-    axs[1, 0].set_title("Post Process Image")
+    axs[1, 0].imshow(output_img_norm)
+    axs[1, 0].set_title("Output Image ")
     axs[1, 0].axis("off")
 
-    axs[1, 1].imshow(original_processed_img_norm)
-    axs[1, 1].set_title("Post Process input Image")
+    axs[1, 1].imshow(post_processed_image)
+    axs[1, 1].set_title("Post Process Image")
     axs[1, 1].axis("off")
 
     plt.show()
@@ -87,8 +87,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # Carga del modelo
 model = DarkEnhancementNet()
 model = model.to(device)
-model.load_state_dict(torch.load("model_epoch_70.pth"))  # Carga los pesos entrenados
-# model.load_state_dict(torch.load("model_epoch_10.pth"))
+model.load_state_dict(torch.load("best_model.pth"))  # Carga los pesos entrenados
+# model.load_state_dict(torch.load("model_epoch_20.pth"))
 model.eval()  # Modo de evaluación
 
 # Transformación para la imagen de entrada

@@ -66,11 +66,11 @@ def denormalize(tensor, mean, std):
 
 
 # Parámetros
-batch_size = 16
-num_epochs = 200
+batch_size = 32
+num_epochs = 10
 patience = 10  # Número de épocas para esperar después de una mejora antes de detener el entrenamiento
 epochs_no_improve = 0
-learning_rate = 0.001
+learning_rate = 0.0001
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 workers = 20
 prefecth = 20

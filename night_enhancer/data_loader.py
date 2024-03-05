@@ -12,7 +12,7 @@ import random
 
 
 def add_artificial_lights_to_dark_image(
-    darkened_array, light_count=7, max_light_radius=180
+    darkened_array, light_count=10, max_light_radius=150
 ):
     # Crear una imagen PIL a partir del array para poder dibujar sobre ella
     darkened_image = Image.fromarray(darkened_array)
@@ -20,24 +20,36 @@ def add_artificial_lights_to_dark_image(
         darkened_image, "RGBA"
     )  # Utilizar modo RGBA para transparencia
 
-    for _ in range(random.randint(0, light_count)):
-        # Posición y propiedades de la luz artificial
+    for _ in range(random.randint(1, light_count)):
+        # Posición de la luz artificial
         light_position = (
             np.random.randint(0, darkened_array.shape[1]),
             np.random.randint(0, darkened_array.shape[0]),
         )
-        light_color = (
-            np.random.randint(180, 256),  # R
-            np.random.randint(180, 256),  # G
-            np.random.randint(180, 256),  # B
-        )
-        light_radius = np.random.randint(20, max_light_radius)
+
+        # Seleccionar un color de luz aleatoriamente para el borde del círculo
+        outer_light_color = random.choice(
+            [
+                (255, 240, 200),
+                (255, 100, 100),
+                (191, 0, 15),
+                (135, 149, 175),
+                (134, 169, 215),
+            ]
+        )  # Amarillento o Rojizo
+        light_radius = np.random.randint(30, max_light_radius)
 
         # Crear un gradiente radial para la luz
-        for radius in range(light_radius, 0, -5):
+        for radius in range(light_radius, 0, -2):
+            # Interpolar entre blanco en el centro y el color seleccionado hacia el borde
+            ratio = radius / light_radius
+            r = int((255 * (1 - ratio)) + outer_light_color[0] * ratio)
+            g = int((255 * (1 - ratio)) + outer_light_color[1] * ratio)
+            b = int((255 * (1 - ratio)) + outer_light_color[2] * ratio)
             alpha = int(
-                (255 * (light_radius - radius) ** 2) / light_radius**2
-            )  # Atenuación más realista
+                (1 - ratio**0.05) * 255
+            )  # Aumenta el exponente para una caída más rápida de la transparencia
+
             draw.ellipse(
                 (
                     light_position[0] - radius,
@@ -45,24 +57,50 @@ def add_artificial_lights_to_dark_image(
                     light_position[0] + radius,
                     light_position[1] + radius,
                 ),
-                fill=light_color + (alpha,),
+                fill=(r, g, b, alpha),
             )
 
     # Aplicar un desenfoque gaussiano para simular el desenfoque de la luz en la noche
-    darkened_image = darkened_image.filter(ImageFilter.GaussianBlur(radius=2))
+    darkened_image = darkened_image.filter(ImageFilter.GaussianBlur(radius=5))
 
-    return np.array(darkened_image)
+    return np.array(darkened_image).astype(np.uint8)
 
 
-def darken_sky(image_array, max_darken_factor, min_darken_factor):
-    height = image_array.shape[0]
-    # Crear un gradiente que vaya de max_darken_factor a min_darken_factor
-    gradient = np.linspace(max_darken_factor, min_darken_factor, height).reshape(
-        height, 1, 1
-    )
-    # Aplicar el gradiente al cielo, asumiendo que el cielo está en la parte superior de la imagen
-    darkened_sky = image_array * gradient
-    return darkened_sky
+def darken_sky(image_array, sky_darken_factor=0.1, transition_height=0.5):
+    """
+    Oscurece la parte superior de la imagen para simular un cielo nocturno.
+
+    Args:
+    - image_array: numpy array de la imagen.
+    - sky_darken_factor: factor de oscurecimiento aplicado al cielo.
+    - transition_height: altura de la transición del oscurecimiento expresada como
+      una fracción de la altura total de la imagen.
+
+    Returns:
+    - numpy array de la imagen con el cielo oscurecido.
+    """
+    height, width, _ = image_array.shape
+    sky_limit = int(height * transition_height)  # Donde comienza la transición
+    transition_zone_height = height - sky_limit  # Altura de la zona de transición
+
+    # Oscurecer la mitad superior de la imagen
+    sky_darkened = np.ones((sky_limit, width, 3), dtype=np.uint8) * sky_darken_factor
+    sky_darkened = image_array[:sky_limit] * sky_darkened
+
+    # Crear gradiente para la mitad inferior de la imagen
+    transition_gradient = np.linspace(
+        sky_darken_factor, 1, transition_zone_height
+    ).reshape(transition_zone_height, 1)
+    transition_gradient = np.tile(transition_gradient, (1, width))
+    transition_gradient = np.repeat(transition_gradient[:, :, np.newaxis], 3, axis=2)
+
+    # Aplicar el gradiente a la zona de transición
+    transition_darkened = image_array[sky_limit:height] * transition_gradient
+
+    # Combinar el cielo oscurecido con la zona de transición
+    combined_image = np.concatenate((sky_darkened, transition_darkened), axis=0)
+
+    return combined_image.astype(np.uint8)
 
 
 def reduce_saturation(image_array, saturation_factor):
@@ -73,47 +111,66 @@ def reduce_saturation(image_array, saturation_factor):
     image = converter.enhance(
         saturation_factor
     )  # Un valor menor que 1 reduce la saturación
-    return np.array(image)
+    return np.array(image).astype(np.uint8)
 
 
-# Función para oscurecer manualmente la imagen
-def darken_image_manual(
-    image,
-    darken_factor=0.1,
-    brightness_variation_range=(0.001, 0.01),
-    saturation_factor=0.4,
-):
-    # Convertir la imagen a un array de NumPy y oscurecerla
-    image_array = np.array(image).astype(float)
+def simulate_headlights(image_array, spread=0.1, min_intensity=0.3, max_intensity=0.7):
     height, width = image_array.shape[:2]
+    headlights = np.zeros((height, width), dtype=np.float32)
 
-    # Aplicar un oscurecimiento base
-    darkened_array = image_array * darken_factor
+    # La intensidad de los faros es un valor aleatorio dentro del rango dado
+    intensity = np.random.uniform(min_intensity, max_intensity)
 
-    # Simulación de variabilidad en la iluminación
-    brightness_variation = random.uniform(*brightness_variation_range)
-    darkened_array *= brightness_variation
+    # Simular la iluminación central de los faros
+    center_x = width // 2
+    horizon_y = int(
+        height * 0.8
+    )  # Asumimos que el horizonte está al 80% de la altura de la imagen
 
-    # Aplicar HDR y tone mapping simulado
-    darkened_array = np.clip(darkened_array, 0, 255).astype(np.uint8)
-    darkened_array = (
-        np.log(1 + darkened_array) / np.log(256)
-    ) * 255  # Simulación simple de tone mapping
+    # El spread determina qué tan rápido se reduce la intensidad de la luz desde el centro
+    spread = 1 / (spread * width)
+
+    for y in range(horizon_y, height):
+        for x in range(width):
+            dx = center_x - x
+            dy = horizon_y - y
+            distance = np.sqrt(dx * dx + dy * dy)
+            headlights[y, x] = np.exp(-distance * spread) * intensity
+
+    # Asegurarse de que la máscara de faros no exceda la intensidad de 1
+    headlights = np.clip(headlights, 0, 1)
+
+    # Aplicamos la máscara de faros sobre la imagen original
+    result = image_array.copy()
+    for i in range(3):  # Aplicamos la máscara a cada canal de color
+        result[horizon_y:, :, i] = image_array[horizon_y:, :, i] * headlights[
+            horizon_y:, :
+        ] + image_array[horizon_y:, :, i] * (1 - headlights[horizon_y:, :])
+
+    return result.astype(np.uint8)
+
+
+def darken_image_manual(image, darken_factor=1, saturation_factor=0.5):
+    # Convertir la imagen a un array de NumPy y oscurecerla
+    image_array = np.array(image).astype(np.uint8)
+    darkened_array = (image_array * darken_factor).astype(np.uint8)
 
     # Oscurecer el cielo de manera más agresiva
-    darkened_array = darken_sky(
-        image_array, max_darken_factor=0.01, min_darken_factor=0.5
-    )
+    darkened_sky = darken_sky(darkened_array)
 
-    # Reducir la saturación para evitar colores extraños en el cielo
-    darkened_array = reduce_saturation(darkened_array, saturation_factor)
+    # Simular la iluminación de los faros
+    darkened_with_headlights = simulate_headlights(darkened_sky).astype(np.uint8)
 
     # Añadir luces artificiales
-    darkened_array = np.clip(darkened_array, 0, 255).astype(np.uint8)
-    darkened_array = add_artificial_lights_to_dark_image(darkened_array)
+    darkened_with_lights = add_artificial_lights_to_dark_image(darkened_with_headlights)
+
+    # Reducir la saturación
+    darkened_with_lights_reduced_saturation = reduce_saturation(
+        darkened_with_lights, saturation_factor
+    )
 
     # Convertir el array oscurecido de vuelta a una imagen PIL y retornar
-    return Image.fromarray(darkened_array)
+    return Image.fromarray(darkened_with_lights_reduced_saturation.astype(np.uint8))
 
 
 dark_transforms = transforms.Compose([transforms.Lambda(darken_image_manual)])
@@ -247,4 +304,4 @@ def test_dataset_loop():
             break
 
 
-test_dataset_loop()
+# test_dataset_loop()
