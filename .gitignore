@@ -1,0 +1,9 @@
+datasets/
+
+models/first_version_dual_input/
+
+models/first_version_light_enhancer/
+
+__pycache__/
+
+*.pth
