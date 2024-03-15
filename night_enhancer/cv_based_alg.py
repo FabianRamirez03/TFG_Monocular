@@ -212,10 +212,13 @@ def main(tmin=0.1, w=5, alpha=0.4, omega=0.75, p=0.1, eps=1e-3, reduce=False):
         )
 
         show_four_images(
-            (night_image_np, "night_image_np"),
-            (final_image, "final_image"),
-            (final_image_reduced, "final_image_reduced"),
-            (enhanced_final_image_reduced, "enhanced_final_image_reduced"),
+            (night_image_np, "Input image"),
+            (final_image, "Input image processed stock"),
+            (final_image_reduced, "Final imagen light sources reduced"),
+            (
+                enhanced_final_image_reduced,
+                "Final imagen light sources reduced and enhanced",
+            ),
         )
 
         a = input("E para salir, cualquier tecla para continuar \n")
