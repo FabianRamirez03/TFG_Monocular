@@ -6,6 +6,7 @@ from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor
 from torch.utils.data import DataLoader
 import torchvision.transforms.functional as TF
 import matplotlib.pyplot as plt
+import pandas as pd
 
 
 class RaindropDataset(Dataset):
@@ -67,6 +68,39 @@ class RaindropDataset(Dataset):
             clear_image = self.transform(clear_image)
 
         return {"rain": rain_image, "clear": clear_image}
+
+
+class RainCustomDataset(Dataset):
+    def __init__(
+        self,
+        csv_file,
+        root_dir,
+        transform=None,
+    ):
+
+        self.annotations = pd.read_csv(csv_file)
+        # Filtrar por imágenes etiquetadas como soleado o nublado
+        self.annotations = self.annotations[self.annotations["lluvia"] == 1]
+        self.root_dir = root_dir
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.annotations)
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        img_path = os.path.join(self.root_dir, self.annotations.iloc[idx, 0])
+        image = Image.open(img_path).convert("RGB")
+
+        # Aplicar otras transformaciones si existen
+        if self.transform:
+            original_image = self.transform(image)
+        else:
+            original_image = image
+
+        return original_image
 
 
 def show_images(rain_image, clear_image, title="Image Pair"):

@@ -83,8 +83,7 @@ class AttentionMapGenerator(nn.Module):
             nn.Sigmoid(),
         )
 
-    def forward(self, rain_image, clear_image):
-        x = torch.cat([rain_image, clear_image], dim=1)
+    def forward(self, x):
         x = self.downsample(x)
         x = self.res_blocks(x)
         attention_map = self.upsample(x)
@@ -139,14 +138,23 @@ class Generator(nn.Module):
             in_channels, hidden_channels
         )
         self.image_generator = ImageGeneratorFromAttention(in_channels, out_channels)
+        self.training_mode = True
 
-    def forward(self, x, y):
-        attention_map = self.attention_map_generator(x, y)
+    def forward(self, x, y=None):
+        if self.training_mode and y is not None:
+            # Modo de entrenamiento: usa tanto x como y
+            input_attention_map_generator = torch.cat([x, y], dim=1)
+        else:
+            # Modo de inferencia: solo usa x, duplicando la entrada para simular la presencia de y
+            input_attention_map_generator = torch.cat([x, x], dim=1)
+
+        attention_map = self.attention_map_generator(input_attention_map_generator)
         out = self.image_generator(x, attention_map)
-        return (
-            out,
-            attention_map,
-        )  # Return the generated image and the attention map for visualization
+        return out, attention_map
+
+    def set_training_mode(self, mode=True):
+        """Establece el modo de entrenamiento del generador."""
+        self.training_mode = mode
 
 
 class Discriminator(nn.Module):
@@ -245,4 +253,4 @@ def show_images_with_generated(
     plt.show()
 
 
-test_full_generator()
+# test_full_generator()
