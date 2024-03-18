@@ -1,273 +1,248 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
+from data_loader import RaindropDataset
+from torch.utils.data import DataLoader
 import torchvision.transforms.functional as TF
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+import matplotlib.pyplot as plt
 
 
 class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1):
+    def __init__(self, in_channels, out_channels, stride=1, downsample=None):
         super(ResidualBlock, self).__init__()
         self.conv1 = nn.Conv2d(
-            in_channels, out_channels, kernel_size=3, stride=stride, padding=1
+            in_channels,
+            out_channels,
+            kernel_size=3,
+            stride=stride,
+            padding=1,
+            bias=False,
         )
         self.bn1 = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.LeakyReLU(0.2, inplace=True)
         self.conv2 = nn.Conv2d(
-            out_channels, out_channels, kernel_size=3, stride=1, padding=1
+            out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False
         )
         self.bn2 = nn.BatchNorm2d(out_channels)
-        self.downsample = nn.Sequential()
-        if stride != 1 or in_channels != out_channels:
-            self.downsample = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride),
-                nn.BatchNorm2d(out_channels),
-            )
+        self.downsample = downsample
 
     def forward(self, x):
-        identity = x
+        residual = x
+
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
+
         out = self.conv2(out)
         out = self.bn2(out)
-        out += self.downsample(identity)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
         out = self.relu(out)
+
         return out
 
 
-class AttentionGeneratorBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, hidden_size=64, num_layers=2):
-        super(AttentionGeneratorBlock, self).__init__()
-
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-
-        # Bloques convolucionales para procesar la entrada
-        self.conv_blocks = nn.Sequential(
-            nn.Conv2d(in_channels, hidden_size, kernel_size=3, padding=1),
-            nn.BatchNorm2d(hidden_size),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(hidden_size, hidden_size, kernel_size=3, padding=1),
-            nn.BatchNorm2d(hidden_size),
-            nn.ReLU(inplace=True),
+class AttentionMapGenerator(nn.Module):
+    def __init__(self, in_channels, hidden_channels):
+        super(AttentionMapGenerator, self).__init__()
+        self.downsample = nn.Sequential(
+            nn.Conv2d(
+                in_channels * 2, hidden_channels, kernel_size=3, stride=2, padding=1
+            ),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.BatchNorm2d(hidden_channels),
+            nn.Conv2d(
+                hidden_channels, hidden_channels * 2, kernel_size=3, stride=2, padding=1
+            ),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.BatchNorm2d(hidden_channels * 2),
         )
 
-        # Bloques residuales
         self.res_blocks = nn.Sequential(
-            ResidualBlock(hidden_size, hidden_size),
-            ResidualBlock(hidden_size, hidden_size),
+            ResidualBlock(hidden_channels * 2, hidden_channels * 2),
+            ResidualBlock(hidden_channels * 2, hidden_channels * 2),
         )
 
-        # LSTM para procesar las características secuenciales
-        self.lstm = nn.LSTM(
-            hidden_size,
-            hidden_size=hidden_size,
-            num_layers=num_layers,
-            batch_first=True,
-        )
-
-        # Upsample usando convolución transpuesta
-        self.upsample_conv = nn.Sequential(
+        self.upsample = nn.Sequential(
             nn.ConvTranspose2d(
-                hidden_size,
-                hidden_size // 2,
+                hidden_channels * 2,
+                hidden_channels,
                 kernel_size=3,
                 stride=2,
                 padding=1,
                 output_padding=1,
             ),
-            nn.ReLU(inplace=True),
-        )
-        self.conv_out = nn.Conv2d(hidden_size // 2, out_channels, kernel_size=1)
-
-    def forward(self, x, prev_attention=None):
-        # Pasar la entrada a través de las capas convolucionales
-        conv_out = self.conv_blocks(x)
-
-        # Pasar la salida de las convoluciones a través de los bloques residuales
-        res_out = self.res_blocks(conv_out)
-
-        # Global average pooling para obtener una representación secuencial
-        pooled_out = res_out.mean(dim=[2, 3])  # Tamaño: [batch_size, hidden_size]
-        pooled_out = pooled_out.unsqueeze(1)  # Tamaño: [batch_size, 1, hidden_size]
-
-        # Preparar el estado inicial para LSTM si es necesario
-        batch_size = x.size(0)
-        h_0 = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(x.device)
-        c_0 = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(x.device)
-        h_prev, c_prev = (h_0, c_0) if prev_attention is None else prev_attention
-
-        # Pasar las características agrupadas a través de LSTM
-        lstm_out, (h, c) = self.lstm(pooled_out, (h_prev, c_prev))
-
-        # Realizar upsampling en la salida de LSTM
-        lstm_out = lstm_out[:, -1, :].view(batch_size, self.hidden_size, 1, 1)
-
-        upsample_out = self.upsample_conv(lstm_out)
-        upsample_out = F.interpolate(
-            upsample_out, size=(224, 224), mode="bilinear", align_corners=False
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.BatchNorm2d(hidden_channels),
+            nn.ConvTranspose2d(
+                hidden_channels, 1, kernel_size=3, stride=2, padding=1, output_padding=1
+            ),
+            nn.Sigmoid(),
         )
 
-        attention_map = self.conv_out(upsample_out)
+    def forward(self, rain_image, clear_image):
+        x = torch.cat([rain_image, clear_image], dim=1)
+        x = self.downsample(x)
+        x = self.res_blocks(x)
+        attention_map = self.upsample(x)
+        return attention_map
 
-        return attention_map, (h, c)
 
-
-class SkipConnection(nn.Module):
-    def __init__(self, input_channels):
-        super(SkipConnection, self).__init__()
-
-        # Incrementar el número de canales
-        self.expand = nn.Conv2d(
-            input_channels, input_channels * 2, kernel_size=3, padding=1
-        )
+class ImageGeneratorFromAttention(nn.Module):
+    def __init__(self, in_channels, out_channels, hidden_channels=64):
+        super(ImageGeneratorFromAttention, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, hidden_channels, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(hidden_channels)
         self.relu1 = nn.ReLU(inplace=True)
 
-        # Reducir el tamaño (downsampling)
-        self.downsample = nn.MaxPool2d(kernel_size=2, stride=2)
-
-        # Procesamiento adicional en la resolución reducida
-        self.process = nn.Sequential(
-            nn.Conv2d(input_channels * 2, input_channels * 4, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(input_channels * 4, input_channels * 2, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
+        # Additional convolutional layers
+        self.conv2 = nn.Conv2d(
+            hidden_channels, hidden_channels, kernel_size=3, padding=1
         )
+        self.bn2 = nn.BatchNorm2d(hidden_channels)
+        self.relu2 = nn.ReLU(inplace=True)
 
-        # Incrementar el tamaño (upsampling)
-        self.upsample = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
-
-        # Reducir nuevamente el número de canales y ajustar la salida
-        self.refine = nn.Sequential(
-            nn.Conv2d(input_channels * 2, input_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(input_channels, input_channels, kernel_size=3, padding=1),
+        self.conv3 = nn.Conv2d(
+            hidden_channels, hidden_channels // 2, kernel_size=3, padding=1
         )
+        self.bn3 = nn.BatchNorm2d(hidden_channels // 2)
+        self.relu3 = nn.ReLU(inplace=True)
 
-    def forward(self, img, attention_map):
-        expanded_attention = attention_map.repeat(1, img.size(1), 1, 1)
+        # Final convolution to generate the output image
+        self.final_conv = nn.Conv2d(
+            hidden_channels // 2, out_channels, kernel_size=3, padding=1
+        )
+        self.final_bn = nn.BatchNorm2d(out_channels)
+        self.final_relu = nn.ReLU(inplace=True)
 
-        # Aplica el mapa de atención a la imagen original
-        attention_applied = img * expanded_attention
+    def forward(self, x, attention_map):
+        # Apply the attention map to the input image
+        x = x * attention_map
 
-        # Procesar con capas convolucionales
-        x = self.expand(attention_applied)
-        x = self.relu1(x)
-        x = self.downsample(x)
-        x = self.process(x)
-        x = self.upsample(x)
-        x = self.refine(x)
+        # Pass through the convolutional layers
+        x = self.relu1(self.bn1(self.conv1(x)))
+        x = self.relu2(self.bn2(self.conv2(x)))
+        x = self.relu3(self.bn3(self.conv3(x)))
 
+        # Generate the final image
+        x = self.final_relu(self.final_bn(self.final_conv(x)))
         return x
 
 
 class Generator(nn.Module):
-    def __init__(self, num_attention_blocks, image_shape):
+    def __init__(self, in_channels, hidden_channels, out_channels):
         super(Generator, self).__init__()
-
-        self.num_attention_blocks = num_attention_blocks
-        self.image_shape = image_shape
-        channels, height, width = image_shape
-
-        # AttentionGeneratorBlocks
-        self.attention_blocks = nn.ModuleList(
-            [
-                (
-                    AttentionGeneratorBlock(3, 1)
-                    if i == 0
-                    else AttentionGeneratorBlock(1, 1)
-                )
-                for i in range(self.num_attention_blocks)
-            ]
+        self.attention_map_generator = AttentionMapGenerator(
+            in_channels, hidden_channels
         )
+        self.image_generator = ImageGeneratorFromAttention(in_channels, out_channels)
 
-        self.skip_connection = SkipConnection(channels)
-
-    def forward(self, x):
-        attention_maps = []
-        prev_attention = None
-        original_x = x
-        for i in range(self.num_attention_blocks):
-            x, prev_attention = self.attention_blocks[i](x, prev_attention)
-            attention_maps.append(x)
-
-        show_attention_maps(attention_maps)
-        # Agregar función de mostar attention maps acá
-        last_attention_map = x
-        # Skip connections
-        output_image = self.skip_connection(original_x, last_attention_map)
-
-        return output_image
-
-
-def show_attention_maps(attention_maps):
-    # Visualizar los mapas de atención uno por uno
-    fig, axes = plt.subplots(1, len(attention_maps), figsize=(20, 10))
-    for i, attention_map in enumerate(attention_maps):
-        ax = axes[i] if len(attention_maps) > 1 else axes
-        # Convertir el mapa de atención de PyTorch a una imagen de PIL para visualizar
-        attention_map_pil = TF.to_pil_image(attention_map.squeeze(0).cpu().detach())
-        ax.imshow(attention_map_pil, cmap="hot")
-        ax.axis("off")
-        ax.set_title(f"Attention Map {i+1}")
-    plt.show()
+    def forward(self, x, y):
+        attention_map = self.attention_map_generator(x, y)
+        out = self.image_generator(x, attention_map)
+        return (
+            out,
+            attention_map,
+        )  # Return the generated image and the attention map for visualization
 
 
 class Discriminator(nn.Module):
     def __init__(self, input_channels):
         super(Discriminator, self).__init__()
-        # Define las capas convolucionales con una cantidad constante de canales
-        self.conv_layers = nn.Sequential(
-            nn.Conv2d(
-                input_channels, input_channels, kernel_size=3, stride=1, padding=1
-            ),
+        self.model = nn.Sequential(
+            nn.Conv2d(input_channels, 64, kernel_size=4, stride=2, padding=1),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(
-                input_channels, input_channels, kernel_size=3, stride=1, padding=1
-            ),
+            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(128),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(
-                input_channels, input_channels, kernel_size=3, stride=1, padding=1
-            ),
+            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(256),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(
-                input_channels, input_channels, kernel_size=3, stride=1, padding=1
-            ),
+            nn.Conv2d(256, 512, kernel_size=4, stride=1, padding=1),
+            nn.BatchNorm2d(512),
             nn.LeakyReLU(0.2, inplace=True),
-            # Suponiendo que hay una capa de downsampling aquí
-            nn.Conv2d(
-                input_channels, input_channels, kernel_size=3, stride=2, padding=1
-            ),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(
-                input_channels, input_channels, kernel_size=3, stride=1, padding=1
-            ),
-            nn.LeakyReLU(0.2, inplace=True),
-        )
-
-        # Capa final antes de las capas completamente conectadas
-        self.final_conv = nn.Conv2d(
-            input_channels, input_channels, kernel_size=3, padding=1
-        )
-
-        # La capa completamente conectada que clasifica como real o falso
-        self.fc_layer = nn.Sequential(
-            # Si todas las capas anteriores mantienen el tamaño constante excepto una con stride de 2
-            nn.Linear(112 * 112 * input_channels, 1),
+            nn.Conv2d(512, 1, kernel_size=4, stride=1, padding=1),
         )
 
     def forward(self, x):
-        # Pasar la entrada a través de las capas convolucionales
-        conv_out = self.conv_layers(x)
-        conv_out = self.final_conv(conv_out)
+        return self.model(x)
 
-        # Aplanamos la salida para pasarla a la capa completamente conectada
-        conv_out_flat = conv_out.view(conv_out.size(0), -1)
 
-        # Pasar la salida aplanada a través de la capa completamente conectada
-        fc_out = self.fc_layer(conv_out_flat)
+def test_full_generator():
+    data_dir = "..\datasets\Raindrop_dataset\\train"
+    model_path = "models\\best_generator.pth"
+    # model_path = "generator_epoch_20.pth"
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    raindrop_dataset = RaindropDataset(data_dir)
+    raindrop_dataloader = DataLoader(raindrop_dataset, batch_size=1, shuffle=True)
 
-        return fc_out
+    # Suponiendo que ya has definido e inicializado tu Generador Completo
+    full_generator = Generator(3, 128, 3).to(device)
+    full_generator.load_state_dict(torch.load(model_path, map_location=device))
+
+    # Obtener un batch de imágenes
+    for batch in raindrop_dataloader:
+        rain_image, clear_image = batch["rain"].to(device), batch["clear"].to(device)
+
+        # Generar imagen sin gotas usando el Generador Completo
+        # Asegúrate de que full_generator está en modo evaluación y en el dispositivo correcto
+        full_generator.eval()
+        with torch.no_grad():
+            generated_image, attention_map = full_generator(
+                rain_image.to(device), clear_image.to(device)
+            )
+
+        # Mostrar las imágenes: lluviosa, limpia y la generada por el generador completo
+        show_images_with_generated(
+            rain_image.squeeze(0),  # Imagen con lluvia
+            clear_image.squeeze(0),  # Imagen limpia
+            generated_image.squeeze(0),  # Imagen generada
+            attention_map.squeeze(0),
+        )
+
+        a = input("Press 'e' to exit, any other key to continue \n")
+        if a.lower() == "e":
+            break
+
+
+def show_images_with_generated(
+    rain_image, clear_image, generated_image, attention_map, title="Image Comparison"
+):
+    """
+    Muestra tres imágenes: una con lluvia, su versión limpia y la generada por el modelo.
+    """
+    # Convertir tensores a imágenes PIL
+    rain_image_pil = TF.to_pil_image(rain_image)
+    clear_image_pil = TF.to_pil_image(clear_image)
+    attention_map = TF.to_pil_image(attention_map)
+    generated_image_pil = TF.to_pil_image(
+        generated_image.clamp(0, 1)
+    )  # Asegurar que los valores estén en [0, 1]
+
+    # Visualizar las imágenes usando matplotlib
+    fig, axs = plt.subplots(1, 4, figsize=(15, 5))
+
+    axs[0].imshow(rain_image_pil)
+    axs[0].set_title("Rainy Image")
+    axs[0].axis("off")
+
+    axs[1].imshow(clear_image_pil)
+    axs[1].set_title("Clear Image")
+    axs[1].axis("off")
+
+    axs[2].imshow(generated_image_pil)
+    axs[2].set_title("Generated Image")
+    axs[2].axis("off")
+
+    axs[3].imshow(attention_map)
+    axs[3].set_title("attention_map")
+    axs[3].axis("off")
+
+    plt.suptitle(title)
+    plt.show()
+
+
+test_full_generator()
