@@ -12,9 +12,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model_path = "models\\best_generator.pth"
 
 # Cargar el modelo
-generator = Generator(3, 128, 3).to(
-    device
-)  # Inicializa tu modelo aquí con los parámetros adecuados
+generator = Generator(3, 128, 3).to(device)
 generator.load_state_dict(torch.load(model_path, map_location=device))
 generator.eval()
 
@@ -33,7 +31,7 @@ dataset = RainCustomDataset(
     transform=transformations,
 )
 
-data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+data_loader = DataLoader(dataset, batch_size=1, shuffle=True)
 
 
 # Visualizar resultados
@@ -41,26 +39,30 @@ def visualize_results(data_loader, generator, device):
     with torch.no_grad():
         for i, real_image in enumerate(data_loader, start=1):
             real_image = real_image.to(device)
-            generated_image, _ = generator(
-                real_image
-            )  # Asumiendo que el generador también produce un mapa de atención
+            generated_image, attention_map = generator(real_image)
 
             # Mostrar imagen real
-            plt.figure(figsize=(12, 6))
-            plt.subplot(1, 2, 1)
+            plt.figure(figsize=(18, 6))
+            plt.subplot(1, 3, 1)
             plt.imshow(real_image.cpu().squeeze(0).permute(1, 2, 0))
             plt.title("Original Image")
             plt.axis("off")
 
             # Mostrar imagen generada
-            plt.subplot(1, 2, 2)
+            plt.subplot(1, 3, 2)
             plt.imshow(generated_image.cpu().squeeze(0).permute(1, 2, 0))
             plt.title("Generated Image")
             plt.axis("off")
 
+            # Mostrar mapa de atención
+            plt.subplot(1, 3, 3)
+            plt.imshow(attention_map.cpu().squeeze(0).permute(1, 2, 0), cmap="jet")
+            plt.title("Attention Map")
+            plt.axis("off")
+
             plt.show()
 
-            if i >= 5:  # Muestra solo las primeras 5 imágenes para el ejemplo
+            if i >= 10:  # Muestra solo las primeras 5 imágenes para el ejemplo
                 break
 
 

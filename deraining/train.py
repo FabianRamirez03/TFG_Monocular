@@ -52,24 +52,38 @@ def train_one_epoch(
 
         # Entrenar el generador
         optimizer_G.zero_grad()
-        generated_images, attention_maps = generator(rain_images, real_images)
-        loss_G = criterion_loss(
-            generated_images, attention_maps, rain_images, real_images
+        generated_images, attention_maps = generator(
+            rain_images
+        )  # Solo necesita la imagen con lluvia
+        fake_preds_for_gen = discriminator(generated_images)
+        loss_G_GAN = criterion_GAN(
+            fake_preds_for_gen, torch.ones_like(fake_preds_for_gen)
         )
+        loss_G_L1 = criterion_loss(
+            generated_image=generated_images,
+            attention_map=attention_maps,
+            rain_image=rain_images,
+            clear_image=real_images,
+        )
+        loss_G = loss_G_GAN + loss_G_L1
         loss_G.backward()
         optimizer_G.step()
 
         # Entrenar el discriminador
         optimizer_D.zero_grad()
-        real_preds = discriminator(real_images)
-        fake_preds = discriminator(generated_images.detach())
-        loss_D_real = criterion_GAN(real_preds, torch.ones_like(real_preds))
-        loss_D_fake = criterion_GAN(fake_preds, torch.zeros_like(fake_preds))
+        real_preds_for_disc = discriminator(real_images)
+        loss_D_real = criterion_GAN(
+            real_preds_for_disc, torch.ones_like(real_preds_for_disc)
+        )
+        fake_preds_for_disc = discriminator(generated_images.detach())
+        loss_D_fake = criterion_GAN(
+            fake_preds_for_disc, torch.zeros_like(fake_preds_for_disc)
+        )
         loss_D = (loss_D_real + loss_D_fake) / 2
         loss_D.backward()
         optimizer_D.step()
 
-        # Acumular las pérdidas para imprimir logs
+        # Acumular las pérdidas
         running_loss_G += loss_G.item()
         running_loss_D += loss_D.item()
 
@@ -78,7 +92,9 @@ def train_one_epoch(
             elapsed_time = time.time() - start_time
             eta = elapsed_time / (i + 1) * (len(train_loader) - (i + 1))
             print(
-                f"Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(train_loader)}], Generator Loss: {running_loss_G / (i + 1):.6f}, Discriminator Loss: {running_loss_D / (i + 1):.6f}, ETA: {timedelta(seconds=int(eta))}"
+                f"Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(train_loader)}], "
+                f"Generator Loss: {running_loss_G / (i + 1):.6f}, "
+                f"Discriminator Loss: {running_loss_D / (i + 1):.6f}, ETA: {timedelta(seconds=int(eta))}"
             )
 
     avg_loss_G = running_loss_G / len(train_loader)
@@ -86,7 +102,8 @@ def train_one_epoch(
 
     # Log de final de época
     print(
-        f"End of Epoch [{epoch+1}/{num_epochs}], Avg Generator Loss: {avg_loss_G:.4f}, Avg Discriminator Loss: {avg_loss_D:.4f}"
+        f"End of Epoch [{epoch+1}/{num_epochs}], Avg Generator Loss: {avg_loss_G:.4f}, "
+        f"Avg Discriminator Loss: {avg_loss_D:.4f}"
     )
 
     return avg_loss_G, avg_loss_D
@@ -103,11 +120,14 @@ def validate(
         for i, batch in enumerate(val_loader):
             real_images = batch["clear"].to(device)
             rain_images = batch["rain"].to(device)
-            generated_images, attention_maps = generator(rain_images, real_images)
+            generated_images, attention_maps = generator(rain_images)
 
             # Pérdida del generador usando la función de pérdida personalizada
             loss_G = criterion_loss(
-                generated_images, attention_maps, rain_images, real_images
+                generated_image=generated_images,
+                attention_map=attention_maps,
+                rain_image=rain_images,
+                clear_image=real_images,
             )
             running_loss_G += loss_G.item()
 
@@ -222,16 +242,21 @@ def loss_function(
     generated_image,
     attention_map,
     rain_image,
-    clear_image,
+    clear_image=None,
     perceptual_loss=perceptual_loss,
 ):
     # Pérdida de reconstrucción
-    reconstruction_loss = F.l1_loss(generated_image, clear_image)
+    reconstruction_loss = F.l1_loss(generated_image, rain_image)
 
     # Pérdida perceptual
-    perceptual_loss_value = perceptual_loss(generated_image, clear_image)
+    if clear_image is not None:
+        perceptual_loss_value = perceptual_loss(generated_image, clear_image)
+    else:
+        perceptual_loss_value = (
+            0  # O puedes optar por calcularlo con otra imagen de referencia.
+        )
 
-    # Pérdida de consistencia de contenido
+    # Pérdida de consistencia de contenido (opcional, dependiendo de tus datos y objetivo)
     content_consistency_loss = F.l1_loss(generated_image, rain_image)
 
     # Pérdida de esparcimiento de los mapas de atención

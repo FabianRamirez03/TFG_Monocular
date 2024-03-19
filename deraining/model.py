@@ -7,6 +7,46 @@ import torchvision.transforms.functional as TF
 import matplotlib.pyplot as plt
 
 
+class ImprovedResidualBlock(nn.Module):
+    def __init__(
+        self, in_channels, out_channels, stride=1, downsample=None, dilation=1
+    ):
+        super(ImprovedResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=3,
+            stride=stride,
+            padding=dilation,
+            bias=False,
+            dilation=dilation,
+        )
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.LeakyReLU(0.2, inplace=True)
+        self.conv2 = nn.Conv2d(
+            out_channels,
+            out_channels,
+            kernel_size=3,
+            stride=1,
+            padding=dilation,
+            bias=False,
+            dilation=dilation,
+        )
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.downsample = downsample
+
+    def forward(self, x):
+        identity = x if self.downsample is None else self.downsample(x)
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out += identity
+        out = self.relu(out)
+        return out
+
+
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1, downsample=None):
         super(ResidualBlock, self).__init__()
@@ -48,45 +88,29 @@ class ResidualBlock(nn.Module):
 class AttentionMapGenerator(nn.Module):
     def __init__(self, in_channels, hidden_channels):
         super(AttentionMapGenerator, self).__init__()
-        self.downsample = nn.Sequential(
-            nn.Conv2d(
-                in_channels * 2, hidden_channels, kernel_size=3, stride=2, padding=1
-            ),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.BatchNorm2d(hidden_channels),
-            nn.Conv2d(
-                hidden_channels, hidden_channels * 2, kernel_size=3, stride=2, padding=1
-            ),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.BatchNorm2d(hidden_channels * 2),
+        self.initial_conv = nn.Conv2d(
+            in_channels, hidden_channels, kernel_size=7, padding=3, bias=False
+        )
+        self.initial_bn = nn.BatchNorm2d(hidden_channels)
+        self.initial_relu = nn.LeakyReLU(0.2, inplace=True)
+
+        self.residual_blocks = nn.Sequential(
+            ImprovedResidualBlock(hidden_channels, hidden_channels, dilation=2),
+            ImprovedResidualBlock(hidden_channels, hidden_channels, dilation=4),
+            ImprovedResidualBlock(hidden_channels, hidden_channels, dilation=8),
+            ImprovedResidualBlock(hidden_channels, hidden_channels, dilation=16),
         )
 
-        self.res_blocks = nn.Sequential(
-            ResidualBlock(hidden_channels * 2, hidden_channels * 2),
-            ResidualBlock(hidden_channels * 2, hidden_channels * 2),
-        )
-
-        self.upsample = nn.Sequential(
-            nn.ConvTranspose2d(
-                hidden_channels * 2,
-                hidden_channels,
-                kernel_size=3,
-                stride=2,
-                padding=1,
-                output_padding=1,
-            ),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.BatchNorm2d(hidden_channels),
-            nn.ConvTranspose2d(
-                hidden_channels, 1, kernel_size=3, stride=2, padding=1, output_padding=1
-            ),
-            nn.Sigmoid(),
-        )
+        self.final_conv = nn.Conv2d(hidden_channels, 1, kernel_size=1)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        x = self.downsample(x)
-        x = self.res_blocks(x)
-        attention_map = self.upsample(x)
+        x = self.initial_conv(x)
+        x = self.initial_bn(x)
+        x = self.initial_relu(x)
+        x = self.residual_blocks(x)
+        x = self.final_conv(x)
+        attention_map = self.sigmoid(x)
         return attention_map
 
 
@@ -140,21 +164,10 @@ class Generator(nn.Module):
         self.image_generator = ImageGeneratorFromAttention(in_channels, out_channels)
         self.training_mode = True
 
-    def forward(self, x, y=None):
-        if self.training_mode and y is not None:
-            # Modo de entrenamiento: usa tanto x como y
-            input_attention_map_generator = torch.cat([x, y], dim=1)
-        else:
-            # Modo de inferencia: solo usa x, duplicando la entrada para simular la presencia de y
-            input_attention_map_generator = torch.cat([x, x], dim=1)
-
-        attention_map = self.attention_map_generator(input_attention_map_generator)
+    def forward(self, x):
+        attention_map = self.attention_map_generator(x)
         out = self.image_generator(x, attention_map)
         return out, attention_map
-
-    def set_training_mode(self, mode=True):
-        """Establece el modo de entrenamiento del generador."""
-        self.training_mode = mode
 
 
 class Discriminator(nn.Module):
