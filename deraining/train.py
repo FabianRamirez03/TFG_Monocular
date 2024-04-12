@@ -14,7 +14,7 @@ from torchvision.models import vgg19, VGG19_Weights
 
 
 from data_loader import RaindropDataset
-from model import Generator, Discriminator
+from model import Deraining_UNet
 
 # Definimos el dispositivo como GPU si está disponible, de lo contrario CPU
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -24,201 +24,6 @@ batch_size = 4
 patience = 20
 epochs_no_improve = 0
 learning_rate = 0.001
-
-
-def train_one_epoch(
-    train_loader,
-    generator,
-    discriminator,
-    optimizer_G,
-    optimizer_D,
-    criterion_GAN,
-    criterion_loss,
-    device,
-    epoch,
-    num_epochs,
-    print_interval,
-):
-    generator.train()
-    discriminator.train()
-
-    running_loss_G = 0.0
-    running_loss_D = 0.0
-    start_time = time.time()
-
-    for i, batch in enumerate(train_loader):
-        real_images = batch["clear"].to(device)
-        rain_images = batch["rain"].to(device)
-
-        # Entrenar el generador
-        optimizer_G.zero_grad()
-        generated_images, attention_maps = generator(
-            rain_images
-        )  # Solo necesita la imagen con lluvia
-        fake_preds_for_gen = discriminator(generated_images)
-        loss_G_GAN = criterion_GAN(
-            fake_preds_for_gen, torch.ones_like(fake_preds_for_gen)
-        )
-        loss_G_L1 = criterion_loss(
-            generated_image=generated_images,
-            attention_map=attention_maps,
-            rain_image=rain_images,
-            clear_image=real_images,
-        )
-        loss_G = loss_G_GAN + loss_G_L1
-        loss_G.backward()
-        optimizer_G.step()
-
-        # Entrenar el discriminador
-        optimizer_D.zero_grad()
-        real_preds_for_disc = discriminator(real_images)
-        loss_D_real = criterion_GAN(
-            real_preds_for_disc, torch.ones_like(real_preds_for_disc)
-        )
-        fake_preds_for_disc = discriminator(generated_images.detach())
-        loss_D_fake = criterion_GAN(
-            fake_preds_for_disc, torch.zeros_like(fake_preds_for_disc)
-        )
-        loss_D = (loss_D_real + loss_D_fake) / 2
-        loss_D.backward()
-        optimizer_D.step()
-
-        # Acumular las pérdidas
-        running_loss_G += loss_G.item()
-        running_loss_D += loss_D.item()
-
-        # Logs
-        if (i + 1) % print_interval == 0:
-            elapsed_time = time.time() - start_time
-            eta = elapsed_time / (i + 1) * (len(train_loader) - (i + 1))
-            print(
-                f"Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(train_loader)}], "
-                f"Generator Loss: {running_loss_G / (i + 1):.6f}, "
-                f"Discriminator Loss: {running_loss_D / (i + 1):.6f}, ETA: {timedelta(seconds=int(eta))}"
-            )
-
-    avg_loss_G = running_loss_G / len(train_loader)
-    avg_loss_D = running_loss_D / len(train_loader)
-
-    # Log de final de época
-    print(
-        f"End of Epoch [{epoch+1}/{num_epochs}], Avg Generator Loss: {avg_loss_G:.4f}, "
-        f"Avg Discriminator Loss: {avg_loss_D:.4f}"
-    )
-
-    return avg_loss_G, avg_loss_D
-
-
-def validate(
-    val_loader, generator, discriminator, criterion_loss, criterion_GAN, device
-):
-    generator.eval()
-    discriminator.eval()
-    running_loss_G = 0.0
-    running_loss_D = 0.0
-    with torch.no_grad():
-        for i, batch in enumerate(val_loader):
-            real_images = batch["clear"].to(device)
-            rain_images = batch["rain"].to(device)
-            generated_images, attention_maps = generator(rain_images)
-
-            # Pérdida del generador usando la función de pérdida personalizada
-            loss_G = criterion_loss(
-                generated_image=generated_images,
-                attention_map=attention_maps,
-                rain_image=rain_images,
-                clear_image=real_images,
-            )
-            running_loss_G += loss_G.item()
-
-            # Evaluación del discriminador
-            real_preds = discriminator(real_images)
-            fake_preds = discriminator(generated_images)
-            loss_D_real = criterion_GAN(real_preds, torch.ones_like(real_preds))
-            loss_D_fake = criterion_GAN(fake_preds, torch.zeros_like(fake_preds))
-            loss_D = (loss_D_real + loss_D_fake) / 2
-            running_loss_D += loss_D.item()
-
-    avg_loss_G = running_loss_G / len(val_loader)
-    avg_loss_D = running_loss_D / len(val_loader)
-
-    return avg_loss_G, avg_loss_D
-
-
-def train_model(
-    num_epochs,
-    train_loader,
-    val_loader,
-    generator,
-    discriminator,
-    optimizer_G,
-    optimizer_D,
-    criterion_GAN,
-    criterion_loss,
-    device,
-    print_interval,
-    validation_interval,
-):
-    best_Discriminator_loss = float("inf")
-    best_Generator_loss = float("inf")
-
-    for epoch in range(num_epochs):
-        # Entrenamiento
-        avg_loss_G, avg_loss_D = train_one_epoch(
-            train_loader,
-            generator,
-            discriminator,
-            optimizer_G,
-            optimizer_D,
-            criterion_GAN,
-            criterion_loss,
-            device,
-            epoch,
-            num_epochs,
-            print_interval,
-        )
-
-        # Validación cada 'validation_interval' épocas
-        if (epoch + 1) % validation_interval == 0:
-            val_loss_G, val_loss_D = validate(
-                val_loader,
-                generator,
-                discriminator,
-                criterion_loss,
-                criterion_GAN,
-                device,
-            )
-            print(
-                f"Validation Results - Epoch [{epoch+1}/{num_epochs}]: Avg Generator Loss: {val_loss_G:.6f}, Avg Discriminator Loss: {val_loss_D:.6f}"
-            )
-
-        # Comparar con las mejores pérdidas y hacer checkpointing si hay mejora
-        if val_loss_D < best_Discriminator_loss:
-            best_Discriminator_loss = val_loss_D
-            torch.save(discriminator.state_dict(), f"models\\best_discriminator.pth")
-            epochs_no_improve = 0
-        if val_loss_G <= best_Generator_loss:
-            best_Generator_loss = val_loss_G
-            torch.save(generator.state_dict(), f"models\\best_generator.pth")
-            epochs_no_improve = 0
-
-        # Incrementar el contador de épocas sin mejora y comprobar si se alcanzó la paciencia
-        if val_loss_G > best_Generator_loss:
-            epochs_no_improve += 1
-            print(f"Sin mejora por {epochs_no_improve} épocas")
-            print(f"Mejor pérdida del generador: {best_Generator_loss}")
-            if epochs_no_improve >= patience:
-                print(
-                    f"Early stopping ejecutado después de {patience} épocas sin mejora."
-                )
-                break
-
-        if epoch % 5 == 4:  # Cada 5 épocas
-            torch.save(
-                discriminator.state_dict(), f"models\\discriminator_epoch_{epoch+1}.pth"
-            )
-            torch.save(generator.state_dict(), f"models\\generator_epoch_{epoch+1}.pth")
-            print(f"Model saved at epoch {epoch+1}")
 
 
 class PerceptualLoss(nn.Module):
@@ -238,37 +43,158 @@ class PerceptualLoss(nn.Module):
 perceptual_loss = PerceptualLoss()
 
 
-def loss_function(
-    generated_image,
-    attention_map,
-    rain_image,
-    clear_image=None,
-    perceptual_loss=perceptual_loss,
+def train_one_epoch(
+    train_loader,
+    generator,
+    optimizer_G,
+    criterion_loss,
+    device,
+    epoch,
+    num_epochs,
+    print_interval,
 ):
-    # Pérdida de reconstrucción
-    reconstruction_loss = F.l1_loss(generated_image, rain_image)
+    generator.train()
+    running_loss_G = 0.0
+    start_time = time.time()
 
-    # Pérdida perceptual
-    if clear_image is not None:
-        perceptual_loss_value = perceptual_loss(generated_image, clear_image)
-    else:
-        perceptual_loss_value = (
-            0  # O puedes optar por calcularlo con otra imagen de referencia.
+    for i, batch in enumerate(train_loader):
+        real_images = batch["clear"].to(device)
+        rain_images = batch["rain"].to(device)
+
+        # Entrenar el generador
+        optimizer_G.zero_grad()
+        generated_images = generator(
+            rain_images
+        )  # El generador produce la imagen limpia
+        loss_G = criterion_loss(
+            generated_image=generated_images,
+            clear_image=real_images,
+            perceptual_loss_module=perceptual_loss,
+        )
+        loss_G.backward()
+        optimizer_G.step()
+
+        # Acumular las pérdidas
+        running_loss_G += loss_G.item()
+
+        # Logs
+        if (i + 1) % print_interval == 0:
+            elapsed_time = time.time() - start_time
+            eta = elapsed_time / (i + 1) * (len(train_loader) - (i + 1))
+            print(
+                f"Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(train_loader)}], Generator Loss: {running_loss_G / (i + 1):.6f}, ETA: {timedelta(seconds=int(eta))}"
+            )
+
+    avg_loss_G = running_loss_G / len(train_loader)
+
+    # Log de final de época
+    print(
+        f"End of Epoch [{epoch+1}/{num_epochs}], Avg Generator Loss: {avg_loss_G:.4f}"
+    )
+
+    return avg_loss_G
+
+
+def validate(
+    val_loader,
+    generator,
+    criterion_loss,
+    device,
+):
+    generator.eval()
+    running_loss_G = 0.0
+    with torch.no_grad():
+        for batch in val_loader:
+            real_images = batch["clear"].to(device)
+            rain_images = batch["rain"].to(device)
+
+            # Generar imágenes limpias a partir de las imágenes con lluvia
+            generated_images = generator(rain_images)
+
+            # Calcular la pérdida entre las imágenes generadas y las imágenes reales sin lluvia
+            loss_G = criterion_loss(
+                generated_image=generated_images,
+                clear_image=real_images,
+                perceptual_loss_module=perceptual_loss,
+            )
+            running_loss_G += loss_G.item()
+
+    avg_loss_G = running_loss_G / len(val_loader)
+
+    print(f"Validation - Avg Generator Loss: {avg_loss_G:.4f}")
+
+    return avg_loss_G
+
+
+def train_model(
+    num_epochs,
+    train_loader,
+    val_loader,
+    generator,
+    optimizer_G,
+    criterion_loss,
+    device,
+    print_interval=20,
+    validation_interval=1,
+):
+    best_Generator_loss = float("inf")
+    epochs_no_improve = 0
+    patience = 20
+
+    for epoch in range(num_epochs):
+        # Entrenamiento
+        avg_loss_G = train_one_epoch(
+            train_loader,
+            generator,
+            optimizer_G,
+            criterion_loss,
+            device,
+            epoch,
+            num_epochs,
+            print_interval,
         )
 
-    # Pérdida de consistencia de contenido (opcional, dependiendo de tus datos y objetivo)
-    content_consistency_loss = F.l1_loss(generated_image, rain_image)
+        # Validación cada 'validation_interval' épocas
+        if (epoch + 1) % validation_interval == 0:
+            val_loss_G = validate(
+                val_loader,
+                generator,
+                criterion_loss,
+                device,
+            )
+            print(
+                f"Validation Results - Epoch [{epoch+1}/{num_epochs}]: Avg Generator Loss: {val_loss_G:.6f}"
+            )
 
-    # Pérdida de esparcimiento de los mapas de atención
-    sparsity_loss = torch.mean(attention_map)
+        # Comparar con la mejor pérdida del generador y hacer checkpointing si hay mejora
+        if val_loss_G <= best_Generator_loss:
+            best_Generator_loss = val_loss_G
+            torch.save(generator.state_dict(), "models/best_generator.pth")
+            epochs_no_improve = 0
+            print(f"Mejor modelo guardado con pérdida: {best_Generator_loss:.6f}")
+        else:
+            epochs_no_improve += 1
+            print(f"Sin mejora por {epochs_no_improve} épocas.")
+            if epochs_no_improve >= patience:
+                print(
+                    f"Early stopping ejecutado después de {patience} épocas sin mejora."
+                )
+                break
 
-    # Combinar las pérdidas
-    total_loss = (
-        reconstruction_loss
-        + 0.1 * perceptual_loss_value
-        + 0.05 * content_consistency_loss
-        + 0.01 * sparsity_loss
-    )
+        if epoch % 5 == 4:  # Cada 5 épocas
+            torch.save(generator.state_dict(), f"models/generator_epoch_{epoch+1}.pth")
+            print(f"Model saved at epoch {epoch+1}")
+
+
+def loss_function(generated_image, clear_image, perceptual_loss_module):
+    # Direct reconstruction loss
+    reconstruction_loss = F.l1_loss(generated_image, clear_image)
+
+    # Perceptual loss
+    perceptual_loss_value = perceptual_loss_module(generated_image, clear_image)
+
+    # Combine losses
+    total_loss = reconstruction_loss + 0.1 * perceptual_loss_value
 
     return total_loss
 
@@ -277,71 +203,60 @@ def main():
 
     print("Begin train")
 
-    image_shape = (3, 224, 224)
     # Cargar los datos
     train_dataset = RaindropDataset(
-        "..\datasets\Raindrop_dataset\\train"
-    )  # Aquí deberías cargar tu dataset de entrenamiento
+        "../datasets/Raindrop_dataset/train"
+    )  # Ajusta la ruta según sea necesario
     val_dataset = RaindropDataset(
-        "..\datasets\Raindrop_dataset\\test_b"
-    )  # Aquí deberías cargar tu dataset de validación
+        "../datasets/Raindrop_dataset/test_b"
+    )  # Ajusta la ruta según sea necesario
     train_loader = DataLoader(
         train_dataset,
-        batch_size=batch_size,
+        batch_size=4,  # Ajusta según tus necesidades
         shuffle=True,
-        num_workers=6,
-        prefetch_factor=3,
+        num_workers=4,  # Ajusta según tu sistema
         pin_memory=True,
-    )  # Definir el batch_size
+    )
     val_loader = DataLoader(
         val_dataset,
-        batch_size=batch_size,
+        batch_size=4,  # Ajusta según tus necesidades
         shuffle=False,
-        num_workers=6,
-        prefetch_factor=3,
+        num_workers=4,  # Ajusta según tu sistema
         pin_memory=True,
-    )  # Definir el batch_size
+    )
 
-    # Inicializar modelos
-    print("Loading generator model")
+    # Inicializar modelo
+    print("Loading U-Net model")
+    generator = Deraining_UNet(in_channels=3, out_channels=3).to(device)
 
-    # Definir funciones de pérdida
-    generator = Generator(in_channels=3, hidden_channels=128, out_channels=3).to(device)
-    discriminator = Discriminator(input_channels=3).to(device)
+    model_path = "models\\best_generator_original.pth"
+    generator.load_state_dict(torch.load(model_path, map_location=device))
 
-    print("Models loaded")
+    print("Model loaded")
 
-    # Definir las funciones de pérdida y optimizadores para ambos modelos
+    # Definir la función de pérdida y el optimizador para el generador
     criterion_loss = loss_function
-    gan_loss = nn.BCEWithLogitsLoss().to(device)
-
-    # Definir optimizadores
     optimizer_G = optim.Adam(
-        generator.parameters(), lr=learning_rate, betas=(0.5, 0.999)
-    )
-    optimizer_D = optim.Adam(
-        discriminator.parameters(), lr=learning_rate, betas=(0.5, 0.999)
+        generator.parameters(),
+        lr=0.001,
+        betas=(0.5, 0.999),  # Ajusta los hiperparámetros según sea necesario
     )
 
-    # Definir los schedulers para los optimizadores
+    # Definir el scheduler para el optimizador del generador
     g_scheduler = StepLR(optimizer_G, step_size=50, gamma=0.1)
-    d_scheduler = StepLR(optimizer_D, step_size=50, gamma=0.1)
 
     num_epochs = 150
 
     train_model(
-        num_epochs,
-        train_loader,
-        val_loader,
-        generator,
-        discriminator,
-        optimizer_G,
-        optimizer_D,
-        gan_loss,
-        criterion_loss,
-        device,
-        print_interval,
-        validation_interval,
+        num_epochs=num_epochs,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        generator=generator,
+        optimizer_G=optimizer_G,
+        criterion_loss=criterion_loss,
+        device=device,
+        print_interval=20,
+        validation_interval=1,
     )
 
 

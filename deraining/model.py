@@ -1,269 +1,127 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from data_loader import RaindropDataset
-from torch.utils.data import DataLoader
-import torchvision.transforms.functional as TF
-import matplotlib.pyplot as plt
 
 
-class ImprovedResidualBlock(nn.Module):
-    def __init__(
-        self, in_channels, out_channels, stride=1, downsample=None, dilation=1
-    ):
-        super(ImprovedResidualBlock, self).__init__()
-        self.conv1 = nn.Conv2d(
-            in_channels,
-            out_channels,
-            kernel_size=3,
-            stride=stride,
-            padding=dilation,
-            bias=False,
-            dilation=dilation,
-        )
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        self.relu = nn.LeakyReLU(0.2, inplace=True)
-        self.conv2 = nn.Conv2d(
-            out_channels,
-            out_channels,
-            kernel_size=3,
-            stride=1,
-            padding=dilation,
-            bias=False,
-            dilation=dilation,
-        )
-        self.bn2 = nn.BatchNorm2d(out_channels)
-        self.downsample = downsample
-
-    def forward(self, x):
-        identity = x if self.downsample is None else self.downsample(x)
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out += identity
-        out = self.relu(out)
-        return out
-
-
-class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1, downsample=None):
-        super(ResidualBlock, self).__init__()
-        self.conv1 = nn.Conv2d(
-            in_channels,
-            out_channels,
-            kernel_size=3,
-            stride=stride,
-            padding=1,
-            bias=False,
-        )
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        self.relu = nn.LeakyReLU(0.2, inplace=True)
-        self.conv2 = nn.Conv2d(
-            out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False
-        )
-        self.bn2 = nn.BatchNorm2d(out_channels)
-        self.downsample = downsample
-
-    def forward(self, x):
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
-        out = self.relu(out)
-
-        return out
-
-
-class AttentionMapGenerator(nn.Module):
-    def __init__(self, in_channels, hidden_channels):
-        super(AttentionMapGenerator, self).__init__()
-        self.initial_conv = nn.Conv2d(
-            in_channels, hidden_channels, kernel_size=7, padding=3, bias=False
-        )
-        self.initial_bn = nn.BatchNorm2d(hidden_channels)
-        self.initial_relu = nn.LeakyReLU(0.2, inplace=True)
-
-        self.residual_blocks = nn.Sequential(
-            ImprovedResidualBlock(hidden_channels, hidden_channels, dilation=2),
-            ImprovedResidualBlock(hidden_channels, hidden_channels, dilation=4),
-            ImprovedResidualBlock(hidden_channels, hidden_channels, dilation=8),
-            ImprovedResidualBlock(hidden_channels, hidden_channels, dilation=16),
-        )
-
-        self.final_conv = nn.Conv2d(hidden_channels, 1, kernel_size=1)
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-        x = self.initial_conv(x)
-        x = self.initial_bn(x)
-        x = self.initial_relu(x)
-        x = self.residual_blocks(x)
-        x = self.final_conv(x)
-        attention_map = self.sigmoid(x)
-        return attention_map
-
-
-class ImageGeneratorFromAttention(nn.Module):
-    def __init__(self, in_channels, out_channels, hidden_channels=64):
-        super(ImageGeneratorFromAttention, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, hidden_channels, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(hidden_channels)
-        self.relu1 = nn.ReLU(inplace=True)
-
-        # Additional convolutional layers
-        self.conv2 = nn.Conv2d(
-            hidden_channels, hidden_channels, kernel_size=3, padding=1
-        )
-        self.bn2 = nn.BatchNorm2d(hidden_channels)
-        self.relu2 = nn.ReLU(inplace=True)
-
-        self.conv3 = nn.Conv2d(
-            hidden_channels, hidden_channels // 2, kernel_size=3, padding=1
-        )
-        self.bn3 = nn.BatchNorm2d(hidden_channels // 2)
-        self.relu3 = nn.ReLU(inplace=True)
-
-        # Final convolution to generate the output image
-        self.final_conv = nn.Conv2d(
-            hidden_channels // 2, out_channels, kernel_size=3, padding=1
-        )
-        self.final_bn = nn.BatchNorm2d(out_channels)
-        self.final_relu = nn.ReLU(inplace=True)
-
-    def forward(self, x, attention_map):
-        # Apply the attention map to the input image
-        x = x * attention_map
-
-        # Pass through the convolutional layers
-        x = self.relu1(self.bn1(self.conv1(x)))
-        x = self.relu2(self.bn2(self.conv2(x)))
-        x = self.relu3(self.bn3(self.conv3(x)))
-
-        # Generate the final image
-        x = self.final_relu(self.final_bn(self.final_conv(x)))
-        return x
-
-
-class Generator(nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels):
-        super(Generator, self).__init__()
-        self.attention_map_generator = AttentionMapGenerator(
-            in_channels, hidden_channels
-        )
-        self.image_generator = ImageGeneratorFromAttention(in_channels, out_channels)
-        self.training_mode = True
-
-    def forward(self, x):
-        attention_map = self.attention_map_generator(x)
-        out = self.image_generator(x, attention_map)
-        return out, attention_map
-
-
-class Discriminator(nn.Module):
-    def __init__(self, input_channels):
-        super(Discriminator, self).__init__()
-        self.model = nn.Sequential(
-            nn.Conv2d(input_channels, 64, kernel_size=4, stride=2, padding=1),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),
-            nn.BatchNorm2d(128),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),
-            nn.BatchNorm2d(256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(256, 512, kernel_size=4, stride=1, padding=1),
-            nn.BatchNorm2d(512),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(512, 1, kernel_size=4, stride=1, padding=1),
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, 3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, 3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
         )
 
     def forward(self, x):
-        return self.model(x)
+        return self.conv(x)
 
 
-def test_full_generator():
-    data_dir = "..\datasets\Raindrop_dataset\\train"
-    model_path = "models\\best_generator.pth"
-    # model_path = "generator_epoch_20.pth"
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    raindrop_dataset = RaindropDataset(data_dir)
-    raindrop_dataloader = DataLoader(raindrop_dataset, batch_size=1, shuffle=True)
-
-    # Suponiendo que ya has definido e inicializado tu Generador Completo
-    full_generator = Generator(3, 128, 3).to(device)
-    full_generator.load_state_dict(torch.load(model_path, map_location=device))
-
-    # Obtener un batch de imágenes
-    for batch in raindrop_dataloader:
-        rain_image, clear_image = batch["rain"].to(device), batch["clear"].to(device)
-
-        # Generar imagen sin gotas usando el Generador Completo
-        # Asegúrate de que full_generator está en modo evaluación y en el dispositivo correcto
-        full_generator.eval()
-        with torch.no_grad():
-            generated_image, attention_map = full_generator(
-                rain_image.to(device), clear_image.to(device)
-            )
-
-        # Mostrar las imágenes: lluviosa, limpia y la generada por el generador completo
-        show_images_with_generated(
-            rain_image.squeeze(0),  # Imagen con lluvia
-            clear_image.squeeze(0),  # Imagen limpia
-            generated_image.squeeze(0),  # Imagen generada
-            attention_map.squeeze(0),
+class UpConv(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.up = nn.Sequential(
+            nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2),
+            nn.ReLU(inplace=True),
         )
 
-        a = input("Press 'e' to exit, any other key to continue \n")
-        if a.lower() == "e":
-            break
+    def forward(self, x):
+        return self.up(x)
 
 
-def show_images_with_generated(
-    rain_image, clear_image, generated_image, attention_map, title="Image Comparison"
-):
-    """
-    Muestra tres imágenes: una con lluvia, su versión limpia y la generada por el modelo.
-    """
-    # Convertir tensores a imágenes PIL
-    rain_image_pil = TF.to_pil_image(rain_image)
-    clear_image_pil = TF.to_pil_image(clear_image)
-    attention_map = TF.to_pil_image(attention_map)
-    generated_image_pil = TF.to_pil_image(
-        generated_image.clamp(0, 1)
-    )  # Asegurar que los valores estén en [0, 1]
+class ConvolutionalAttention(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.attention = nn.Sequential(
+            nn.Conv2d(channels, channels // 8, 1),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm2d(channels // 8),
+            nn.Conv2d(channels // 8, channels, 1),
+            nn.Sigmoid(),
+        )
 
-    # Visualizar las imágenes usando matplotlib
-    fig, axs = plt.subplots(1, 4, figsize=(15, 5))
-
-    axs[0].imshow(rain_image_pil)
-    axs[0].set_title("Rainy Image")
-    axs[0].axis("off")
-
-    axs[1].imshow(clear_image_pil)
-    axs[1].set_title("Clear Image")
-    axs[1].axis("off")
-
-    axs[2].imshow(generated_image_pil)
-    axs[2].set_title("Generated Image")
-    axs[2].axis("off")
-
-    axs[3].imshow(attention_map)
-    axs[3].set_title("attention_map")
-    axs[3].axis("off")
-
-    plt.suptitle(title)
-    plt.show()
+    def forward(self, x):
+        return x * self.attention(x)
 
 
-# test_full_generator()
+class Deraining_UNet(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        # Define the architecture here
+        self.down1 = ConvBlock(in_channels, 64)
+        self.att_d_1 = ConvolutionalAttention(64)
+
+        self.down2 = ConvBlock(64, 128)
+        self.att_d_2 = ConvolutionalAttention(128)
+
+        self.down3 = ConvBlock(128, 256)
+        self.att_d_3 = ConvolutionalAttention(256)
+
+        self.down4 = ConvBlock(256, 512)
+        self.att_d_4 = ConvolutionalAttention(512)
+
+        self.middle = ConvBlock(512, 1024)
+        self.att_mid = ConvolutionalAttention(1024)
+
+        self.up1 = UpConv(1024, 512)
+        self.upconv1 = ConvBlock(1024, 512)
+        self.att_up_m1 = ConvolutionalAttention(512)
+
+        self.up2 = UpConv(512, 256)
+        self.upconv2 = ConvBlock(512, 256)
+        self.att_up_m2 = ConvolutionalAttention(256)
+
+        self.up3 = UpConv(256, 128)
+        self.upconv3 = ConvBlock(256, 128)
+        self.att_up_m3 = ConvolutionalAttention(128)
+
+        self.up4 = UpConv(128, 64)
+        self.upconv4 = ConvBlock(128, 64)
+        self.att4 = ConvolutionalAttention(64)
+
+        self.final_conv = nn.Conv2d(64, out_channels, 1)
+        self.final_activation = nn.Sigmoid()
+
+    def forward(self, x):
+        # Downward path with attention
+        d1 = self.down1(x)
+        d1 = self.att_d_1(d1)
+
+        d2 = self.down2(F.max_pool2d(d1, 2))
+        d2 = self.att_d_2(d2)
+
+        d3 = self.down3(F.max_pool2d(d2, 2))
+        d3 = self.att_d_3(d3)
+
+        d4 = self.down4(F.max_pool2d(d3, 2))
+        d4 = self.att_d_4(d4)
+
+        # Middle with attention
+        middle = self.middle(F.max_pool2d(d4, 2))
+        middle = self.att_mid(middle)
+
+        # Upward path with attention
+        u1 = self.up1(middle)
+        u1 = torch.cat((u1, d4), 1)
+        u1 = self.upconv1(u1)
+        u1 = self.att_up_m1(u1)
+
+        u2 = self.up2(u1)
+        u2 = torch.cat((u2, d3), 1)
+        u2 = self.upconv2(u2)
+        u2 = self.att_up_m2(u2)
+
+        u3 = self.up3(u2)
+        u3 = torch.cat((u3, d2), 1)
+        u3 = self.upconv3(u3)
+        u3 = self.att_up_m3(u3)
+
+        u4 = self.up4(u3)
+        u4 = torch.cat((u4, d1), 1)
+        u4 = self.upconv4(u4)
+        u4 = self.att4(u4)
+
+        output = self.final_conv(u4)
+        return self.final_activation(output)
