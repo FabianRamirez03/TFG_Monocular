@@ -16,23 +16,6 @@ batch_size = 8
 learning_rate = 0.001
 
 
-class PerceptualLoss(nn.Module):
-    def __init__(self):
-        super(PerceptualLoss, self).__init__()
-        self.vgg19 = (
-            vgg19(weights=VGG19_Weights.DEFAULT).features[:36].eval().to(device)
-        )
-        for param in self.vgg19.parameters():
-            param.requires_grad = False
-
-    def forward(self, input, target):
-        perception_loss = F.mse_loss(self.vgg19(input), self.vgg19(target))
-        return perception_loss
-
-
-perceptual_loss = PerceptualLoss()
-
-
 def train_one_epoch(
     train_loader,
     model,
@@ -85,7 +68,7 @@ def train_model(
     criterion_loss,
     device,
     print_interval=20,
-    save_interval=25,
+    save_interval=10,
     patience=20,
 ):
     best_loss = float("inf")
@@ -126,12 +109,26 @@ def train_model(
     return losses
 
 
+def color_balance_loss(generated_image, clear_image):
+    # Compute the mean color channels of the generated and clear images
+    mean_gen = torch.mean(generated_image, dim=(2, 3))
+    mean_clear = torch.mean(clear_image, dim=(2, 3))
+
+    # Calculate the color balance loss as the MSE between the mean color channels
+    r_loss = F.mse_loss(mean_gen[:, 0], mean_clear[:, 0])
+    g_loss = F.mse_loss(mean_gen[:, 1], mean_clear[:, 1])
+    b_loss = F.mse_loss(mean_gen[:, 2], mean_clear[:, 2])
+
+    # We can put more weight on the green channel if the model is biased towards green color
+    color_balance_loss = r_loss + 2 * g_loss + b_loss
+    return color_balance_loss
+
+
 def color_loss(generated_image, clear_image):
-    # Calcula la diferencia de color entre las imágenes generadas y claras
+    # Calculates the color difference between the generated and clear images
     color_diff_loss = F.mse_loss(
         torch.mean(generated_image, dim=(2, 3)), torch.mean(clear_image, dim=(2, 3))
     )
-
     return color_diff_loss
 
 
@@ -143,17 +140,22 @@ def loss_function(generated_image, clear_image):
     perceptual_loss_value = F.mse_loss(generated_image, clear_image)
 
     # Pixel-wise dispersion loss (L2 loss)
-    dispersion_loss = F.mse_loss(torch.std(generated_image), torch.std(clear_image))
+    dispersion_loss = F.mse_loss(
+        torch.std(generated_image, dim=(2, 3)), torch.std(clear_image, dim=(2, 3))
+    )
 
     # Color difference loss
     color_loss_value = color_loss(generated_image, clear_image)
 
+    # Color balance loss (giving more weight to the green channel if it's biased)
+    color_balance_loss_value = color_balance_loss(generated_image, clear_image)
+
     # Combine losses with appropriate weights
     total_loss = (
-        reconstruction_loss
-        + 0.1 * perceptual_loss_value
-        + 0.01 * dispersion_loss
-        + 0.05 * color_loss_value
+        0.6 * reconstruction_loss
+        + 0.2 * perceptual_loss_value
+        + 0.05 * dispersion_loss
+        + 0.15 * (color_loss_value + color_balance_loss_value)
     )
 
     return total_loss
