@@ -10,7 +10,7 @@ from PIL import Image
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model_path = "models\\best_model.pth"
-# model_path = "models\\generator_epoch_250.pth"
+model_path = "models\\generator_epoch_40.pth"
 
 # Cargar el modelo
 generator = Dehazing_UNet(3, 3).to(device)
@@ -19,7 +19,7 @@ generator.eval()
 
 
 # Cargar el dataset
-data_dir = "..\datasets\O-Haze"
+data_dir = "..\datasets\O-Haze-Cityscapes"
 oHaze_dataset = OHazeDataset(data_dir)
 data_loader = DataLoader(oHaze_dataset, batch_size=1, shuffle=True)
 
@@ -99,7 +99,9 @@ def load_transform_image(image_path):
 # Visualizar resultados
 def visualize_results_from_path(data_loader, generator, device):
 
-    image_path = "..\datasets\edit.jpeg"
+    image_path = (
+        "..\datasets\custom_dataset\Processed\BlueFalls-parqueo-neblina\\000000114.png"
+    )
     with torch.no_grad():
         haze_image = load_transform_image(image_path).to(device)
         generated_image = generator(haze_image)

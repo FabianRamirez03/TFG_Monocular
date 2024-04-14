@@ -31,7 +31,10 @@ class OHazeDataset(Dataset):
             [
                 os.path.join(data_dir, "GT", img)
                 for img in os.listdir(os.path.join(data_dir, "GT"))
-                if img.endswith("_GT.png") or img.endswith("_GT.jpg")
+                if img.endswith("_GT.png")
+                or img.endswith("_GT.jpg")
+                or img.endswith("_clean.png")
+                or img.endswith("_GT.jpg")
             ]
         )
 
