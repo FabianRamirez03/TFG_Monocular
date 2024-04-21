@@ -2,11 +2,18 @@ import os
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
-from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor
+from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
 from torch.utils.data import DataLoader
 import torchvision.transforms.functional as TF
 import matplotlib.pyplot as plt
 import pandas as pd
+
+mean = [
+    0.5909,
+    0.6072,
+    0.5899,
+]
+std = [0.5909, 0.6072, 0.5899]
 
 
 class OHazeDataset(Dataset):
@@ -39,12 +46,7 @@ class OHazeDataset(Dataset):
         )
 
         if transform is None:
-            self.transform = Compose(
-                [
-                    Resize((224, 224)),
-                    ToTensor(),
-                ]
-            )
+            self.transform = Compose([Resize((224, 224)), ToTensor()])
 
     def __len__(self):
         """Devuelve el número total de pares de imágenes en el dataset."""
@@ -71,6 +73,13 @@ class OHazeDataset(Dataset):
             clear_image = self.transform(clear_image)
 
         return {"hazy": hazy_image, "clear": clear_image}
+
+    def denormalize(self, tensor):
+        """Reverses the normalization on a tensor."""
+        tensor = tensor.clone()  # make a copy of the tensor
+        for t, m, s in zip(tensor, mean, std):
+            t.mul_(s).add_(m)  # apply denormalization
+        return tensor
 
 
 def show_images(rain_image, clear_image, title="Image Pair"):
@@ -118,4 +127,34 @@ def test_dataset():
             break
 
 
+def calculate_mean_std_aux(dataset):
+    loader = DataLoader(dataset, batch_size=1, num_workers=0, shuffle=False)
+    mean = 0.0
+    std = 0.0
+    nb_samples = 0.0
+    for data in loader:
+        # Suponiendo que la salida del dataset es un diccionario con las claves 'hazy' y 'clear'
+        batch_samples = data["hazy"].size(0)
+        data = data["hazy"].view(batch_samples, data["hazy"].size(1), -1)
+        mean += data.mean(2).sum(0)
+        std += data.std(2).sum(0)
+        nb_samples += batch_samples
+
+    mean /= nb_samples
+    std /= nb_samples
+    return mean, std
+
+
+def calculate_mean_std():
+    dataset_path = "..\datasets\O-Haze-Cityscapes"
+    full_dataset = OHazeDataset(dataset_path)
+
+    # Calcular la media y desviación estándar
+    mean, std = calculate_mean_std_aux(full_dataset)
+
+    print(f"Media del conjunto de datos: {mean}")
+    print(f"Desviación estándar del conjunto de datos: {std}")
+
+
+# calculate_mean_std()
 # test_dataset()

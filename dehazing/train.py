@@ -101,8 +101,9 @@ def train_model(
     losses = []
     val_losses = []
     start_time_total = time.time()
+    start_point = 0
 
-    for epoch in range(num_epochs):
+    for epoch in range(start_point, num_epochs):
         # Entrenamiento
         avg_loss, elapsed_time_epoch = train_one_epoch(
             train_loader,
@@ -243,7 +244,7 @@ def main():
     print("Loading U-Net model")
     model = Dehazing_UNet(in_channels=3, out_channels=3).to(device)
 
-    model_path = "models\\generator_epoch_140.pth"
+    model_path = "models\\generator_epoch_90.pth"
     # model.load_state_dict(torch.load(model_path, map_location=device))
 
     print("Model loaded")
@@ -256,7 +257,7 @@ def main():
         betas=(0.5, 0.999),  # Ajusta los hiperparámetros según sea necesario
     )
 
-    num_epochs = 150
+    num_epochs = 200
 
     train_model(
         num_epochs=num_epochs,
