@@ -2,6 +2,14 @@ import tkinter as tk
 from tkinter import filedialog
 
 
+# Logic
+
+
+def button_clicked():
+
+    print("El botón fue presionado")
+
+
 # Función para abrir el diálogo de selección de archivos
 def upload_action(event=None):
     filename = filedialog.askopenfilename()
@@ -82,6 +90,74 @@ default_image_label.place(x=43, y=43)
 
 processed_image_label = tk.Label(botton_frame, image=no_image_PI)
 processed_image_label.place(x=497, y=43)
+
+
+# Buttons
+
+Upload_bt_path = "gui_images\\Upload_bt.png"
+Upload_bt_PI = tk.PhotoImage(file=Upload_bt_path)
+Upload_button = tk.Button(
+    input_frame,
+    image=Upload_bt_PI,
+    command=button_clicked,
+    borderwidth=0,
+    highlightthickness=0,
+    padx=0,
+    pady=0,
+)
+Upload_button.place(x=497, y=43)
+
+process_bt_path = "gui_images\\process_bt.png"
+process_bt_PI = tk.PhotoImage(file=process_bt_path)
+process_button = tk.Button(
+    input_frame,
+    image=process_bt_PI,
+    command=button_clicked,
+    borderwidth=0,
+    highlightthickness=0,
+    padx=0,
+    pady=0,
+)
+process_button.place(x=497, y=88)
+
+save_logs_bt_path = "gui_images\\save_logs_bt.png"
+save_logs_bt_PI = tk.PhotoImage(file=save_logs_bt_path)
+save_logs_button = tk.Button(
+    console_frame,
+    image=save_logs_bt_PI,
+    command=button_clicked,
+    borderwidth=0,
+    highlightthickness=0,
+    padx=0,
+    pady=0,
+)
+save_logs_button.place(x=311, y=287)
+
+rewind_bt_path = "gui_images\\rewind_bt.png"
+rewind_bt_PI = tk.PhotoImage(file=rewind_bt_path)
+rewind_button = tk.Button(
+    botton_frame,
+    image=rewind_bt_PI,
+    command=button_clicked,
+    borderwidth=0,
+    highlightthickness=0,
+    padx=0,
+    pady=0,
+)
+rewind_button.place(x=1002, y=43)
+
+play_bt_path = "gui_images\\play_bt.png"
+play_bt_PI = tk.PhotoImage(file=play_bt_path)
+play_button = tk.Button(
+    botton_frame,
+    image=play_bt_PI,
+    command=button_clicked,
+    borderwidth=0,
+    highlightthickness=0,
+    padx=0,
+    pady=0,
+)
+play_button.place(x=1002, y=88)
 
 
 # Ejecuta la ventana principal
