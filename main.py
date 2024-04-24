@@ -1,6 +1,6 @@
 import tkinter as tk
-from tkinter import filedialog
-
+from tkinter import filedialog, scrolledtext
+from datetime import datetime
 
 # Logic
 
@@ -10,12 +10,38 @@ def button_clicked():
     print("El botón fue presionado")
 
 
-# Función para abrir el diálogo de selección de archivos
 def upload_action(event=None):
     filename = filedialog.askopenfilename()
     print(
         "Selected:", filename
     )  # Esto es solo para comprobar que se ha seleccionado un archivo
+
+
+def ConsolePrint(message):
+    global console
+    current_time = datetime.now().strftime("%H:%M:%S")
+    timestamped_message = f"{current_time} -> {message}\n"
+
+    console.config(state=tk.NORMAL)
+    console.insert(tk.END, timestamped_message)
+    console.config(state=tk.DISABLED)
+    console.see(tk.END)
+
+
+def save_logs():
+    global console
+
+    filename = filedialog.asksaveasfilename(
+        defaultextension=".txt",
+        filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+    )
+    if filename:  # Si el usuario no cancela el diálogo
+        # Abrir el archivo para escritura y guardar el contenido de la consola
+        with open(filename, "w") as file:
+            # Extraer el texto del widget de texto
+            log_text = console.get("1.0", tk.END)
+            file.write(log_text)
+            ConsolePrint(f"Logs guardados en {filename}")
 
 
 title_Lato = ("Lato", 22)
@@ -33,7 +59,7 @@ main_frame.place(x=0, y=0, width=1280, height=720)
 
 input_frame = tk.Frame(
     main_frame,
-    background="red",
+    background="white",
     bd=5,
     highlightbackground="black",
     highlightthickness=4,
@@ -42,7 +68,7 @@ input_frame.place(x=36, y=33, width=728, height=353)
 
 console_frame = tk.Frame(
     main_frame,
-    background="blue",
+    background="white",
     bd=5,
     highlightbackground="black",
     highlightthickness=4,
@@ -51,7 +77,7 @@ console_frame.place(x=792, y=33, width=454, height=353)
 
 botton_frame = tk.Frame(
     main_frame,
-    background="yellow",
+    background="white",
     bd=5,
     highlightbackground="black",
     highlightthickness=4,
@@ -62,20 +88,20 @@ botton_frame.place(x=36, y=400, width=1210, height=307)
 # Titles
 
 input_label = tk.Label(input_frame, text="Input", bg="white", font=title_Lato)
-input_label.place(x=43, y=11)
+input_label.place(x=43, y=6)
 
 console_label = tk.Label(console_frame, text="Console", bg="white", font=title_Lato)
-console_label.place(x=43, y=11)
+console_label.place(x=43, y=6)
 
 processed_label = tk.Label(
     botton_frame, text="Default depth map", bg="white", font=title_Lato
 )
-processed_label.place(x=43, y=11)
+processed_label.place(x=43, y=6)
 
 default_label = tk.Label(
     botton_frame, text="Depth map with pre processed", bg="white", font=title_Lato
 )
-default_label.place(x=497, y=11)
+default_label.place(x=497, y=6)
 
 # Images
 
@@ -112,7 +138,7 @@ process_bt_PI = tk.PhotoImage(file=process_bt_path)
 process_button = tk.Button(
     input_frame,
     image=process_bt_PI,
-    command=button_clicked,
+    command=lambda: ConsolePrint("Mensaje de prueba a la consola"),
     borderwidth=0,
     highlightthickness=0,
     padx=0,
@@ -125,7 +151,7 @@ save_logs_bt_PI = tk.PhotoImage(file=save_logs_bt_path)
 save_logs_button = tk.Button(
     console_frame,
     image=save_logs_bt_PI,
-    command=button_clicked,
+    command=save_logs,
     borderwidth=0,
     highlightthickness=0,
     padx=0,
@@ -159,6 +185,14 @@ play_button = tk.Button(
 )
 play_button.place(x=1002, y=88)
 
+
+# Console
+
+# Configurar el widget de texto como una consola de logs
+console = scrolledtext.ScrolledText(
+    console_frame, height=15, width=57, font=("Lato", 9), state=tk.DISABLED
+)
+console.place(x=11, y=53)
 
 # Ejecuta la ventana principal
 root.mainloop()
