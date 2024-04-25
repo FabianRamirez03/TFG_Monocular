@@ -2,15 +2,34 @@ import tkinter as tk
 import os
 import numpy as np
 import cv2
+import torch
+import torchvision.transforms as transforms
 from tkinter import filedialog, scrolledtext
 from datetime import datetime
 from PIL import Image, ImageTk
+from tagger.model import DualInputCNN
 
 
 # Globals
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 current_pil_image = None
 
+model_tagger_path = "models\\first_version_dual_input\\best_model_tagger.pth"
+model_tagger = DualInputCNN()
+model_tagger.load_state_dict(torch.load(model_tagger_path, map_location=device))
+model_tagger = model_tagger.to(device)
+model_tagger.eval()
+
+transform_tagger = transforms.Compose(
+    [
+        transforms.Resize([232], interpolation=transforms.InterpolationMode.BILINEAR),
+        transforms.CenterCrop([224]),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ]
+)
 
 # Logic
 
@@ -70,6 +89,8 @@ def open_and_resize_image():
             # Actualizar la imagen en el label
             input_image_label.config(image=tk_image)
             input_image_label.image = tk_image  # Mantener una referencia
+
+            inference_tagger()
 
 
 def update_single_led(flag, label):
@@ -135,9 +156,6 @@ def AdaBins_infer_default():
 
         infer_helper = InferenceHelper(dataset="nyu")
 
-        width, height = current_pil_image.size
-        print(f"Ancho: {width}, Alto: {height}")
-
         bin_centers, predicted_depth = infer_helper.predict_pil(
             current_pil_image.resize((852, 480), Image.Resampling.LANCZOS)
         )
@@ -154,6 +172,35 @@ def AdaBins_infer_default():
     finally:
         # Asegurarse de volver al directorio original
         os.chdir(original_cwd)
+
+
+def update_boolean_leds(preds):
+    global nublado, noche, soleado, lluvia, neblina
+    noche = preds[0][0]
+    soleado = preds[0][1]
+    nublado = preds[0][2]
+    lluvia = preds[0][3]
+    neblina = preds[0][4]
+
+    update_leds()
+
+
+def inference_tagger():
+    global current_pil_image, model_tagger, transform_tagger
+
+    image_transformed = transform_tagger(current_pil_image).unsqueeze(0)
+
+    height = image_transformed.size(2)
+    upper_section = image_transformed[:, :, : int(height * 0.25), :]
+    lower_section = image_transformed[:, :, int(height * 0.25) :, :]
+
+    upper_section, lower_section = upper_section.to(device), lower_section.to(device)
+
+    with torch.no_grad():
+        outputs = model_tagger(upper_section, lower_section)
+        preds = torch.sigmoid(outputs).cpu().numpy() > 0.5
+
+    update_boolean_leds(preds)
 
 
 # Globals
