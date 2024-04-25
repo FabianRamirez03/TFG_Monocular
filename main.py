@@ -1,7 +1,16 @@
 import tkinter as tk
+import os
+import numpy as np
+import cv2
 from tkinter import filedialog, scrolledtext
 from datetime import datetime
 from PIL import Image, ImageTk
+
+
+# Globals
+
+current_pil_image = None
+
 
 # Logic
 
@@ -46,7 +55,7 @@ def save_logs():
 
 
 def open_and_resize_image():
-    global input_image_label
+    global input_image_label, current_pil_image
     file_path = filedialog.askopenfilename(
         title="Open Image",
         filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.bmp;*.gif")],
@@ -54,6 +63,7 @@ def open_and_resize_image():
     ConsolePrint("Image selected: " + file_path)
     if file_path:
         with Image.open(file_path) as img:
+            current_pil_image = img
             resized_img = img.resize((426, 240), Image.Resampling.LANCZOS)
             tk_image = ImageTk.PhotoImage(resized_img)
 
@@ -79,6 +89,57 @@ def update_leds():
     update_single_led(soleado, soleado_image)
     update_single_led(lluvia, lluvia_image)
     update_single_led(neblina, neblina_image)
+
+
+def normalize_depth_array(depth_array):
+    """Normaliza un mapa de profundidad para estar en el rango 0-255"""
+    depth_min = depth_array.min()
+    depth_max = depth_array.max()
+    if depth_max - depth_min > 0:
+        depth_array = (depth_array - depth_min) / (depth_max - depth_min) * 255
+    else:
+        depth_array = np.zeros(depth_array.shape)
+    return depth_array.astype(np.uint8)
+
+
+def apply_color_map(depth_array):
+    """Aplica un mapa de colores a un mapa de profundidad y devuelve una imagen de PIL"""
+    colored_depth = cv2.applyColorMap(depth_array, cv2.COLORMAP_MAGMA)
+    colored_depth = cv2.cvtColor(colored_depth, cv2.COLOR_BGR2RGB)
+    return Image.fromarray(colored_depth)
+
+
+def change_working_directory(path):
+    """Cambia el directorio de trabajo y devuelve el original para restaurarlo más tarde"""
+    original_cwd = os.getcwd()
+    os.chdir(path)
+    return original_cwd
+
+
+def AdaBins_infer():
+    global current_pil_image, default_image_label
+
+    # Cambiar al directorio del submódulo y guardar el directorio actual
+    original_cwd = change_working_directory("AdaBins")
+
+    try:
+        from AdaBins.infer import InferenceHelper
+
+        infer_helper = InferenceHelper(dataset="nyu")
+        bin_centers, predicted_depth = infer_helper.predict_pil(current_pil_image)
+        predicted_depth = np.squeeze(predicted_depth)
+
+        normalized_depth = normalize_depth_array(predicted_depth)
+        inference_image = apply_color_map(normalized_depth)
+
+        inference_image = inference_image.resize((426, 240), Image.Resampling.LANCZOS)
+        photo_image = ImageTk.PhotoImage(inference_image)
+        default_image_label.config(image=photo_image)
+        default_image_label.image = photo_image  # Mantener una referencia
+
+    finally:
+        # Asegurarse de volver al directorio original
+        os.chdir(original_cwd)
 
 
 # Globals
@@ -177,7 +238,7 @@ process_bt_PI = tk.PhotoImage(file=process_bt_path)
 process_button = tk.Button(
     input_frame,
     image=process_bt_PI,
-    command=lambda: ConsolePrint("Mensaje de prueba a la consola"),
+    command=AdaBins_infer,
     borderwidth=0,
     highlightthickness=0,
     padx=0,
