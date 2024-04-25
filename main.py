@@ -117,6 +117,14 @@ def change_working_directory(path):
 
 
 def AdaBins_infer():
+    # Infer the default image
+    if current_pil_image is not None:
+        AdaBins_infer_default()
+    else:
+        ConsolePrint("Select an image or video.")
+
+
+def AdaBins_infer_default():
     global current_pil_image, default_image_label
 
     # Cambiar al directorio del submódulo y guardar el directorio actual
@@ -126,7 +134,13 @@ def AdaBins_infer():
         from AdaBins.infer import InferenceHelper
 
         infer_helper = InferenceHelper(dataset="nyu")
-        bin_centers, predicted_depth = infer_helper.predict_pil(current_pil_image)
+
+        width, height = current_pil_image.size
+        print(f"Ancho: {width}, Alto: {height}")
+
+        bin_centers, predicted_depth = infer_helper.predict_pil(
+            current_pil_image.resize((852, 480), Image.Resampling.LANCZOS)
+        )
         predicted_depth = np.squeeze(predicted_depth)
 
         normalized_depth = normalize_depth_array(predicted_depth)
