@@ -101,7 +101,7 @@ input_frame = tk.Frame(
     background="white",
     bd=5,
     highlightbackground="black",
-    highlightthickness=4,
+    highlightthickness=2,
 )
 input_frame.place(x=36, y=33, width=728, height=353)
 
@@ -110,7 +110,7 @@ console_frame = tk.Frame(
     background="white",
     bd=5,
     highlightbackground="black",
-    highlightthickness=4,
+    highlightthickness=2,
 )
 console_frame.place(x=792, y=33, width=454, height=353)
 
@@ -119,7 +119,7 @@ botton_frame = tk.Frame(
     background="white",
     bd=5,
     highlightbackground="black",
-    highlightthickness=4,
+    highlightthickness=2,
 )
 botton_frame.place(x=36, y=400, width=1210, height=307)
 
