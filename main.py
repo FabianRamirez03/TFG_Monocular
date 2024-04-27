@@ -4,10 +4,12 @@ import numpy as np
 import cv2
 import torch
 import torchvision.transforms as transforms
+import torchvision.transforms.functional as TF
 from tkinter import filedialog, scrolledtext
 from datetime import datetime
 from PIL import Image, ImageTk
 from tagger.model import DualInputCNN
+from deraining.model import Deraining_UNet
 
 
 # Globals
@@ -140,9 +142,11 @@ def change_working_directory(path):
 def AdaBins_infer():
     # Infer the default image
     if current_pil_image is not None:
+        AdaBins_infer_processed()
+
         AdaBins_infer_default()
     else:
-        ConsolePrint("Select an image or video.")
+        ConsolePrint("No image or video selected.")
 
 
 def AdaBins_infer_default():
@@ -172,6 +176,67 @@ def AdaBins_infer_default():
     finally:
         # Asegurarse de volver al directorio original
         os.chdir(original_cwd)
+
+
+def AdaBins_infer_processed():
+    global current_pil_image, processed_image_label
+    global nublado, noche, soleado, lluvia, neblina
+
+    original_cwd = os.getcwd()
+
+    try:
+        from AdaBins.infer import InferenceHelper
+
+        image_to_process = current_pil_image.resize(
+            (224, 224), Image.Resampling.LANCZOS
+        )
+        if lluvia:
+
+            image_to_process = derain_image(image_to_process)
+
+        change_working_directory("AdaBins")
+
+        infer_helper = InferenceHelper(dataset="nyu")
+
+        bin_centers, predicted_depth = infer_helper.predict_pil(
+            image_to_process.resize((852, 480), Image.Resampling.LANCZOS)
+        )
+        predicted_depth = np.squeeze(predicted_depth)
+
+        normalized_depth = normalize_depth_array(predicted_depth)
+        inference_image = apply_color_map(normalized_depth)
+
+        inference_image = inference_image.resize((426, 240), Image.Resampling.LANCZOS)
+        photo_image = ImageTk.PhotoImage(inference_image)
+        processed_image_label.config(image=photo_image)
+        processed_image_label.image = photo_image  # Mantener una referencia
+
+    finally:
+        # Asegurarse de volver al directorio original
+        os.chdir(original_cwd)
+
+
+def derain_image(image):
+    ConsolePrint("Deraining image")
+    global device
+
+    model_path = "models\\deraining.pth"
+    derain_model = Deraining_UNet(in_channels=3, out_channels=3).to(device)
+    derain_model.load_state_dict(torch.load(model_path, map_location=device))
+    derain_model.eval()
+
+    transform = transforms.ToTensor()
+    tensor_image = transform(image).to(device).unsqueeze(0)
+
+    print(tensor_image.size())
+
+    generated_image = derain_model(tensor_image).cpu().squeeze(0)
+
+    print(tensor_image.size())
+
+    pil_image = TF.to_pil_image(generated_image)
+
+    return pil_image
 
 
 def update_boolean_leds(preds):
