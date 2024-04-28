@@ -180,7 +180,7 @@ def AdaBins_infer_default():
 
 
 def AdaBins_infer_processed():
-    global current_pil_image, processed_image_label
+    global current_pil_image, processed_image_label, processed_input_image_label
     global nublado, noche, soleado, lluvia, neblina
 
     original_cwd = os.getcwd()
@@ -191,13 +191,10 @@ def AdaBins_infer_processed():
         image_to_process = current_pil_image.resize(
             (224, 224), Image.Resampling.LANCZOS
         )
-        print(type(image_to_process))
         if noche:
             image_to_process = enhance_night_image(image_to_process)
-            print(type(image_to_process))
         if lluvia:
             image_to_process = derain_image(image_to_process)
-            print(type(image_to_process))
 
         change_working_directory("AdaBins")
 
@@ -213,8 +210,15 @@ def AdaBins_infer_processed():
 
         inference_image = inference_image.resize((426, 240), Image.Resampling.LANCZOS)
         photo_image = ImageTk.PhotoImage(inference_image)
+
         processed_image_label.config(image=photo_image)
         processed_image_label.image = photo_image  # Mantener una referencia
+
+        image_to_process_pi = ImageTk.PhotoImage(
+            image_to_process.resize((426, 240), Image.Resampling.LANCZOS)
+        )
+        processed_input_image_label.config(image=image_to_process_pi)
+        processed_input_image_label.image = image_to_process_pi
 
     finally:
         # Asegurarse de volver al directorio original
@@ -318,6 +322,12 @@ console_frame.place(x=36, y=720, width=1210, height=130)
 input_label = tk.Label(input_frame, text="Input", bg=bg_color, font=title_Lato)
 input_label.place(x=43, y=6)
 
+input_label = tk.Label(
+    input_frame, text="Processed input image", bg=bg_color, font=title_Lato
+)
+input_label.place(x=513, y=6)
+
+
 console_label = tk.Label(console_frame, text="Console", bg=bg_color, font=title_Lato)
 console_label.place(x=43, y=2)
 
@@ -339,6 +349,11 @@ no_image_PI = tk.PhotoImage(file=no_image_path)
 input_image_label = tk.Label(input_frame, image=no_image_PI, width=426, height=240)
 input_image_label.place(x=43, y=43)
 
+processed_input_image_label = tk.Label(
+    input_frame, image=no_image_PI, width=426, height=240
+)
+processed_input_image_label.place(x=513, y=43)
+
 default_image_label = tk.Label(botton_frame, image=no_image_PI, width=426, height=240)
 default_image_label.place(x=43, y=43)
 
@@ -359,7 +374,7 @@ Upload_button = tk.Button(
     padx=0,
     pady=0,
 )
-Upload_button.place(x=497, y=43)
+Upload_button.place(x=1000, y=43)
 
 process_bt_path = "gui_images\\process_bt.png"
 process_bt_PI = tk.PhotoImage(file=process_bt_path)
@@ -372,7 +387,7 @@ process_button = tk.Button(
     padx=0,
     pady=0,
 )
-process_button.place(x=497, y=88)
+process_button.place(x=1000, y=88)
 
 save_logs_bt_path = "gui_images\\save_logs_bt.png"
 save_logs_bt_PI = tk.PhotoImage(file=save_logs_bt_path)
