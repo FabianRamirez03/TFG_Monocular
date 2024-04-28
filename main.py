@@ -11,6 +11,7 @@ from PIL import Image, ImageTk
 from tagger.model import DualInputCNN
 from deraining.model import Deraining_UNet
 from night_enhancer.night_enhancer import enhance_night_image
+from dehazing.model import Dehazing_UNet
 
 
 # Processing Globals
@@ -188,8 +189,6 @@ def change_working_directory(path):
 def AdaBins_infer():
     # Infer the default image
     if current_pil_image is not None:
-        reset_images_results()
-
         AdaBins_infer_processed()
 
         AdaBins_infer_default()
@@ -242,6 +241,8 @@ def AdaBins_infer_processed():
             image_to_process = enhance_night_image(image_to_process)
         if lluvia:
             image_to_process = derain_image(image_to_process)
+        if neblina:
+            image_to_process = dehaze_image(image_to_process)
 
         change_working_directory("AdaBins")
 
@@ -285,6 +286,25 @@ def derain_image(image):
     tensor_image = transform(image).to(device).unsqueeze(0)
 
     generated_image = derain_model(tensor_image).cpu().squeeze(0)
+
+    pil_image = TF.to_pil_image(generated_image)
+
+    return pil_image
+
+
+def dehaze_image(image):
+    ConsolePrint("Dehazing image")
+    global device
+
+    model_path = "models\\dehazing.pth"
+    dehazing_model = Dehazing_UNet(3, 3).to(device)
+    dehazing_model.load_state_dict(torch.load(model_path, map_location=device))
+    dehazing_model.eval()
+
+    transform = transforms.ToTensor()
+    tensor_image = transform(image).to(device).unsqueeze(0)
+
+    generated_image = dehazing_model(tensor_image).cpu().squeeze(0)
 
     pil_image = TF.to_pil_image(generated_image)
 
