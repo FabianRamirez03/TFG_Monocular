@@ -130,6 +130,36 @@ def update_leds():
     update_single_led(neblina, neblina_image)
 
 
+def toggle_nublado():
+    global nublado
+    nublado = not nublado
+    update_leds()
+
+
+def toggle_noche():
+    global noche
+    noche = not noche
+    update_leds()
+
+
+def toggle_soleado():
+    global soleado
+    soleado = not soleado
+    update_leds()
+
+
+def toggle_lluvia():
+    global lluvia
+    lluvia = not lluvia
+    update_leds()
+
+
+def toggle_neblina():
+    global neblina
+    neblina = not neblina
+    update_leds()
+
+
 def normalize_depth_array(depth_array):
     """Normaliza un mapa de profundidad para estar en el rango 0-255"""
     depth_min = depth_array.min()
@@ -158,6 +188,8 @@ def change_working_directory(path):
 def AdaBins_infer():
     # Infer the default image
     if current_pil_image is not None:
+        reset_images_results()
+
         AdaBins_infer_processed()
 
         AdaBins_infer_default()
@@ -471,18 +503,23 @@ neblina = False
 
 nublado_image = tk.Label(input_frame, bg=bg_color)
 nublado_image.place(x=43, y=313)
+nublado_image.bind("<Button-1>", lambda e: toggle_nublado())
 
 noche_image = tk.Label(input_frame, bg=bg_color)
 noche_image.place(x=139, y=313)
+noche_image.bind("<Button-1>", lambda e: toggle_noche())
 
 soleado_image = tk.Label(input_frame, bg=bg_color)
 soleado_image.place(x=223, y=313)
+soleado_image.bind("<Button-1>", lambda e: toggle_soleado())
 
 lluvia_image = tk.Label(input_frame, bg=bg_color)
 lluvia_image.place(x=316, y=313)
+lluvia_image.bind("<Button-1>", lambda e: toggle_lluvia())
 
 neblina_image = tk.Label(input_frame, bg=bg_color)
 neblina_image.place(x=395, y=313)
+neblina_image.bind("<Button-1>", lambda e: toggle_neblina())
 
 update_leds()
 
