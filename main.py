@@ -277,13 +277,13 @@ bg_color = "#FDFDFD"
 # Configuración inicial de la ventana principal
 root = tk.Tk()
 root.title("Interfaz de procesamiento de imagen")
-root.geometry("1280x720")
+root.geometry("1280x882")
 root.resizable(False, False)
 
 
 # Frames
 main_frame = tk.Frame(root, background=bg_color)
-main_frame.place(x=0, y=0, width=1280, height=720)
+main_frame.place(x=0, y=0, width=1280, height=882)
 
 input_frame = tk.Frame(
     main_frame,
@@ -292,16 +292,8 @@ input_frame = tk.Frame(
     highlightbackground="black",
     highlightthickness=2,
 )
-input_frame.place(x=36, y=33, width=728, height=353)
+input_frame.place(x=36, y=36, width=1210, height=353)
 
-console_frame = tk.Frame(
-    main_frame,
-    background=bg_color,
-    bd=5,
-    highlightbackground="black",
-    highlightthickness=2,
-)
-console_frame.place(x=792, y=33, width=454, height=353)
 
 botton_frame = tk.Frame(
     main_frame,
@@ -310,8 +302,16 @@ botton_frame = tk.Frame(
     highlightbackground="black",
     highlightthickness=2,
 )
-botton_frame.place(x=36, y=400, width=1210, height=307)
+botton_frame.place(x=36, y=408, width=1210, height=300)
 
+console_frame = tk.Frame(
+    main_frame,
+    background=bg_color,
+    bd=5,
+    highlightbackground="black",
+    highlightthickness=2,
+)
+console_frame.place(x=36, y=720, width=1210, height=130)
 
 # Titles
 
@@ -319,7 +319,7 @@ input_label = tk.Label(input_frame, text="Input", bg=bg_color, font=title_Lato)
 input_label.place(x=43, y=6)
 
 console_label = tk.Label(console_frame, text="Console", bg=bg_color, font=title_Lato)
-console_label.place(x=43, y=6)
+console_label.place(x=43, y=2)
 
 processed_label = tk.Label(
     botton_frame, text="Default depth map", bg=bg_color, font=title_Lato
@@ -385,7 +385,7 @@ save_logs_button = tk.Button(
     padx=0,
     pady=0,
 )
-save_logs_button.place(x=311, y=287)
+save_logs_button.place(x=1018, y=4)
 
 rewind_bt_path = "gui_images\\rewind_bt.png"
 rewind_bt_PI = tk.PhotoImage(file=rewind_bt_path)
@@ -418,9 +418,9 @@ play_button.place(x=1002, y=88)
 
 # Configurar el widget de texto como una consola de logs
 console = scrolledtext.ScrolledText(
-    console_frame, height=15, width=57, font=("Lato", 9), state=tk.DISABLED
+    console_frame, height=4, width=160, font=("Lato", 9), state=tk.DISABLED
 )
-console.place(x=11, y=53)
+console.place(x=43, y=50)
 
 
 # State leds images
