@@ -10,6 +10,7 @@ from datetime import datetime
 from PIL import Image, ImageTk
 from tagger.model import DualInputCNN
 from deraining.model import Deraining_UNet
+from night_enhancer.night_enhancer import enhance_night_image
 
 
 # Globals
@@ -190,9 +191,13 @@ def AdaBins_infer_processed():
         image_to_process = current_pil_image.resize(
             (224, 224), Image.Resampling.LANCZOS
         )
+        print(type(image_to_process))
+        if noche:
+            image_to_process = enhance_night_image(image_to_process)
+            print(type(image_to_process))
         if lluvia:
-
             image_to_process = derain_image(image_to_process)
+            print(type(image_to_process))
 
         change_working_directory("AdaBins")
 
@@ -228,11 +233,7 @@ def derain_image(image):
     transform = transforms.ToTensor()
     tensor_image = transform(image).to(device).unsqueeze(0)
 
-    print(tensor_image.size())
-
     generated_image = derain_model(tensor_image).cpu().squeeze(0)
-
-    print(tensor_image.size())
 
     pil_image = TF.to_pil_image(generated_image)
 
