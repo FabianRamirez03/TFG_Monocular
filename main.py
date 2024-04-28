@@ -76,6 +76,19 @@ def save_logs():
             ConsolePrint(f"Logs guardados en {filename}")
 
 
+def reset_images_results():
+    global processed_input_image_label, default_image_label, processed_image_label, no_image_PI
+
+    processed_input_image_label.config(image=no_image_PI)
+    processed_input_image_label.image = no_image_PI
+
+    default_image_label.config(image=no_image_PI)
+    default_image_label.image = no_image_PI
+
+    processed_image_label.config(image=no_image_PI)
+    processed_image_label.image = no_image_PI
+
+
 def open_and_resize_image():
     global input_image_label, current_pil_image
     file_path = filedialog.askopenfilename(
@@ -94,6 +107,8 @@ def open_and_resize_image():
             input_image_label.image = tk_image  # Mantener una referencia
 
             inference_tagger()
+
+            reset_images_results()
 
 
 def update_single_led(flag, label):
