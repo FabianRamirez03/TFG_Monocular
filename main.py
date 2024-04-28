@@ -13,7 +13,7 @@ from deraining.model import Deraining_UNet
 from night_enhancer.night_enhancer import enhance_night_image
 
 
-# Globals
+# Processing Globals
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -269,9 +269,10 @@ def inference_tagger():
     update_boolean_leds(preds)
 
 
-# Globals
+# GUI Globals
 
 title_Lato = ("Lato", 22)
+bg_color = "#FDFDFD"
 
 # Configuración inicial de la ventana principal
 root = tk.Tk()
@@ -281,12 +282,12 @@ root.resizable(False, False)
 
 
 # Frames
-main_frame = tk.Frame(root, background="white")
+main_frame = tk.Frame(root, background=bg_color)
 main_frame.place(x=0, y=0, width=1280, height=720)
 
 input_frame = tk.Frame(
     main_frame,
-    background="white",
+    background=bg_color,
     bd=5,
     highlightbackground="black",
     highlightthickness=2,
@@ -295,7 +296,7 @@ input_frame.place(x=36, y=33, width=728, height=353)
 
 console_frame = tk.Frame(
     main_frame,
-    background="white",
+    background=bg_color,
     bd=5,
     highlightbackground="black",
     highlightthickness=2,
@@ -304,7 +305,7 @@ console_frame.place(x=792, y=33, width=454, height=353)
 
 botton_frame = tk.Frame(
     main_frame,
-    background="white",
+    background=bg_color,
     bd=5,
     highlightbackground="black",
     highlightthickness=2,
@@ -314,19 +315,19 @@ botton_frame.place(x=36, y=400, width=1210, height=307)
 
 # Titles
 
-input_label = tk.Label(input_frame, text="Input", bg="white", font=title_Lato)
+input_label = tk.Label(input_frame, text="Input", bg=bg_color, font=title_Lato)
 input_label.place(x=43, y=6)
 
-console_label = tk.Label(console_frame, text="Console", bg="white", font=title_Lato)
+console_label = tk.Label(console_frame, text="Console", bg=bg_color, font=title_Lato)
 console_label.place(x=43, y=6)
 
 processed_label = tk.Label(
-    botton_frame, text="Default depth map", bg="white", font=title_Lato
+    botton_frame, text="Default depth map", bg=bg_color, font=title_Lato
 )
 processed_label.place(x=43, y=6)
 
 default_label = tk.Label(
-    botton_frame, text="Depth map with pre processed", bg="white", font=title_Lato
+    botton_frame, text="Depth map with pre processed", bg=bg_color, font=title_Lato
 )
 default_label.place(x=497, y=6)
 
@@ -424,12 +425,12 @@ console.place(x=11, y=53)
 
 # State leds images
 
-led_off_image = Image.open("gui_images\\led_off_big.png")
-led_off_image = led_off_image.resize((14, 14), Image.ANTIALIAS)
+led_off_image = Image.open("gui_images\\led_off_trans.png")
+led_off_image = led_off_image.resize((14, 14), Image.Resampling.LANCZOS)
 led_off_PI = ImageTk.PhotoImage(led_off_image)
 
-led_on_image = Image.open("gui_images\\led_on_big.png")
-led_on_image = led_on_image.resize((14, 14), Image.ANTIALIAS)
+led_on_image = Image.open("gui_images\\led_on_trans.png")
+led_on_image = led_on_image.resize((14, 14), Image.Resampling.LANCZOS)
 led_on_PI = ImageTk.PhotoImage(led_on_image)
 
 nublado = False
@@ -438,19 +439,19 @@ soleado = False
 lluvia = False
 neblina = False
 
-nublado_image = tk.Label(input_frame)
+nublado_image = tk.Label(input_frame, bg=bg_color)
 nublado_image.place(x=43, y=313)
 
-noche_image = tk.Label(input_frame)
+noche_image = tk.Label(input_frame, bg=bg_color)
 noche_image.place(x=139, y=313)
 
-soleado_image = tk.Label(input_frame)
+soleado_image = tk.Label(input_frame, bg=bg_color)
 soleado_image.place(x=223, y=313)
 
-lluvia_image = tk.Label(input_frame)
+lluvia_image = tk.Label(input_frame, bg=bg_color)
 lluvia_image.place(x=316, y=313)
 
-neblina_image = tk.Label(input_frame)
+neblina_image = tk.Label(input_frame, bg=bg_color)
 neblina_image.place(x=395, y=313)
 
 update_leds()
@@ -460,19 +461,19 @@ update_leds()
 nublado_label = tk.Label(
     input_frame,
     text="Nublado",
-    bg="white",
+    bg=bg_color,
     font=("Lato", 14),
     borderwidth=0,
     highlightthickness=0,
     padx=0,
     pady=0,
 )
-nublado_label.place(x=61, y=312)
+nublado_label.place(x=64, y=312)
 
 noche_label = tk.Label(
     input_frame,
     text="Noche",
-    bg="white",
+    bg=bg_color,
     font=("Lato", 14),
     borderwidth=0,
     highlightthickness=0,
@@ -484,7 +485,7 @@ noche_label.place(x=157, y=312)
 soleado_label = tk.Label(
     input_frame,
     text="Soleado",
-    bg="white",
+    bg=bg_color,
     font=("Lato", 14),
     borderwidth=0,
     highlightthickness=0,
@@ -496,19 +497,19 @@ soleado_label.place(x=242, y=312)
 lluvia_label = tk.Label(
     input_frame,
     text="Lluvia",
-    bg="white",
+    bg=bg_color,
     font=("Lato", 14),
     borderwidth=0,
     highlightthickness=0,
     padx=0,
     pady=0,
 )
-lluvia_label.place(x=334, y=312)
+lluvia_label.place(x=337, y=312)
 
 neblina_label = tk.Label(
     input_frame,
     text="Neblina",
-    bg="white",
+    bg=bg_color,
     font=("Lato", 14),
     borderwidth=0,
     highlightthickness=0,
