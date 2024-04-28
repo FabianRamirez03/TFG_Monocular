@@ -424,8 +424,13 @@ console.place(x=11, y=53)
 
 # State leds images
 
-led_off_PI = ImageTk.PhotoImage(Image.open("gui_images\\led_off.png"))
-led_on_PI = ImageTk.PhotoImage(Image.open("gui_images\\led_on.png"))
+led_off_image = Image.open("gui_images\\led_off_big.png")
+led_off_image = led_off_image.resize((14, 14), Image.ANTIALIAS)
+led_off_PI = ImageTk.PhotoImage(led_off_image)
+
+led_on_image = Image.open("gui_images\\led_on_big.png")
+led_on_image = led_on_image.resize((14, 14), Image.ANTIALIAS)
+led_on_PI = ImageTk.PhotoImage(led_on_image)
 
 nublado = False
 noche = False
