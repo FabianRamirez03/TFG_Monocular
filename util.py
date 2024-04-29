@@ -271,16 +271,14 @@ def update_csv():
     csv_mainteinence()
     # Ejemplo de uso
     csv_path = "frames_labels.csv"  # Asegúrate de reemplazar 'tu_archivo.csv' con la ruta real de tu archivo CSV
-    image_prefix = (
-        "Dani-Garage-tarde\\0"  # Prefijo del path de las imágenes a actualizar
-    )
+    image_prefix = "Haze-Images"  # Prefijo del path de las imágenes a actualizar
     frames = []
     tags = {
         "noche": False,
-        "soleado": True,
+        "soleado": False,
         "nublado": False,
         "lluvia": False,
-        "neblina": False,
+        "neblina": True,
         "sombras": False,
     }
     if frames == []:
@@ -485,7 +483,7 @@ def main():
 
     # cleaning_wrong_directories_pipeline()
     # create_csv()
-    # update_csv()
+    update_csv()
     # csv_mainteinence()
     # find_and_remove_empty_directories()
     #  remove_accents_and_rename_directories()
@@ -493,7 +491,7 @@ def main():
     # print_data_rows_counter()
     # print_label_counts()
     # calculate_mean_std()
-    process_and_save_images()
+    # process_and_save_images()
 
 
 if __name__ == "__main__":

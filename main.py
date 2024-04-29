@@ -20,7 +20,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 current_pil_image = None
 
-model_tagger_path = "models\\first_version_dual_input\\best_model_tagger.pth"
+model_tagger_path = "models\\tagger.pth"
 model_tagger = DualInputCNN()
 model_tagger.load_state_dict(torch.load(model_tagger_path, map_location=device))
 model_tagger = model_tagger.to(device)
@@ -34,6 +34,16 @@ transform_tagger = transforms.Compose(
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ]
 )
+
+derain_model_path = "models\\deraining.pth"
+derain_model = Deraining_UNet(in_channels=3, out_channels=3).to(device)
+derain_model.load_state_dict(torch.load(derain_model_path, map_location=device))
+derain_model.eval()
+
+dehazing_model_path = "models\\dehazing.pth"
+dehazing_model = Dehazing_UNet(3, 3).to(device)
+dehazing_model.load_state_dict(torch.load(dehazing_model_path, map_location=device))
+dehazing_model.eval()
 
 # Logic
 
@@ -275,12 +285,7 @@ def AdaBins_infer_processed():
 
 def derain_image(image):
     ConsolePrint("Deraining image")
-    global device
-
-    model_path = "models\\deraining.pth"
-    derain_model = Deraining_UNet(in_channels=3, out_channels=3).to(device)
-    derain_model.load_state_dict(torch.load(model_path, map_location=device))
-    derain_model.eval()
+    global device, derain_model
 
     transform = transforms.ToTensor()
     tensor_image = transform(image).to(device).unsqueeze(0)
@@ -294,12 +299,7 @@ def derain_image(image):
 
 def dehaze_image(image):
     ConsolePrint("Dehazing image")
-    global device
-
-    model_path = "models\\dehazing.pth"
-    dehazing_model = Dehazing_UNet(3, 3).to(device)
-    dehazing_model.load_state_dict(torch.load(model_path, map_location=device))
-    dehazing_model.eval()
+    global device, dehazing_model
 
     transform = transforms.ToTensor()
     tensor_image = transform(image).to(device).unsqueeze(0)
