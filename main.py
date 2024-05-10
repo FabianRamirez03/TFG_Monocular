@@ -348,13 +348,13 @@ bg_color = "#FDFDFD"
 # Configuración inicial de la ventana principal
 root = tk.Tk()
 root.title("Interfaz de procesamiento de imagen")
-root.geometry("1280x882")
+root.geometry("1056x882")
 root.resizable(False, False)
 
 
 # Frames
 main_frame = tk.Frame(root, background=bg_color)
-main_frame.place(x=0, y=0, width=1280, height=882)
+main_frame.place(x=0, y=0, width=1056, height=882)
 
 input_frame = tk.Frame(
     main_frame,
@@ -363,7 +363,7 @@ input_frame = tk.Frame(
     highlightbackground="black",
     highlightthickness=2,
 )
-input_frame.place(x=36, y=36, width=1210, height=353)
+input_frame.place(x=36, y=36, width=984, height=353)
 
 
 botton_frame = tk.Frame(
@@ -373,7 +373,7 @@ botton_frame = tk.Frame(
     highlightbackground="black",
     highlightthickness=2,
 )
-botton_frame.place(x=36, y=408, width=1210, height=300)
+botton_frame.place(x=36, y=408, width=984, height=304)
 
 console_frame = tk.Frame(
     main_frame,
@@ -382,7 +382,7 @@ console_frame = tk.Frame(
     highlightbackground="black",
     highlightthickness=2,
 )
-console_frame.place(x=36, y=720, width=1210, height=130)
+console_frame.place(x=36, y=726, width=984, height=140)
 
 # Titles
 
@@ -396,7 +396,7 @@ input_label.place(x=513, y=6)
 
 
 console_label = tk.Label(console_frame, text="Console", bg=bg_color, font=title_Lato)
-console_label.place(x=43, y=2)
+console_label.place(x=43, y=6)
 
 processed_label = tk.Label(
     botton_frame, text="Default depth map", bg=bg_color, font=title_Lato
@@ -406,7 +406,7 @@ processed_label.place(x=43, y=6)
 default_label = tk.Label(
     botton_frame, text="Depth map with pre processed", bg=bg_color, font=title_Lato
 )
-default_label.place(x=497, y=6)
+default_label.place(x=515, y=6)
 
 # Images
 
@@ -441,7 +441,7 @@ Upload_button = tk.Button(
     padx=0,
     pady=0,
 )
-Upload_button.place(x=1000, y=43)
+Upload_button.place(x=513, y=300)
 
 process_bt_path = "gui_images\\process_bt.png"
 process_bt_PI = tk.PhotoImage(file=process_bt_path)
@@ -454,7 +454,7 @@ process_button = tk.Button(
     padx=0,
     pady=0,
 )
-process_button.place(x=1000, y=88)
+process_button.place(x=673, y=300)
 
 save_logs_bt_path = "gui_images\\save_logs_bt.png"
 save_logs_bt_PI = tk.PhotoImage(file=save_logs_bt_path)
@@ -467,40 +467,14 @@ save_logs_button = tk.Button(
     padx=0,
     pady=0,
 )
-save_logs_button.place(x=1018, y=4)
-
-rewind_bt_path = "gui_images\\rewind_bt.png"
-rewind_bt_PI = tk.PhotoImage(file=rewind_bt_path)
-rewind_button = tk.Button(
-    botton_frame,
-    image=rewind_bt_PI,
-    command=button_clicked,
-    borderwidth=0,
-    highlightthickness=0,
-    padx=0,
-    pady=0,
-)
-rewind_button.place(x=1002, y=43)
-
-play_bt_path = "gui_images\\play_bt.png"
-play_bt_PI = tk.PhotoImage(file=play_bt_path)
-play_button = tk.Button(
-    botton_frame,
-    image=play_bt_PI,
-    command=button_clicked,
-    borderwidth=0,
-    highlightthickness=0,
-    padx=0,
-    pady=0,
-)
-play_button.place(x=1002, y=88)
+save_logs_button.place(x=844, y=4)
 
 
 # Console
 
 # Configurar el widget de texto como una consola de logs
 console = scrolledtext.ScrolledText(
-    console_frame, height=4, width=160, font=("Lato", 9), state=tk.DISABLED
+    console_frame, height=4, width=127, font=("Lato", 9), state=tk.DISABLED
 )
 console.place(x=43, y=50)
 
