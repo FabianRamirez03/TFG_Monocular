@@ -4,9 +4,7 @@ import torch.optim as optim
 from torchvision import transforms, models
 from torch.utils.data import DataLoader
 from model import DualInputCNN
-from data_loader import (
-    CustomDataset,
-)  # Asegúrate de que data_loader.py esté en el mismo directorio que train.py
+from data_loader import CustomDataset
 import os
 import time
 import copy
@@ -15,13 +13,13 @@ import copy
 # Configuración de parámetros
 resize_size = [232]
 crop_size = [224]
-batch_size = 32  # Puede ser ajustado según se requiera
+batch_size = 50  # Puede ser ajustado según se requiera
 workers = 16
 prefetch_factor = 5
 learning_rate = 0.0001
-num_epochs = 200
+num_epochs = 150
 csv_file = "..\\frames_labels.csv"
-root_dir = "..\\datasets\\custom_dataset/Processed"
+root_dir = "..\\datasets\\custom_dataset\\Processed"
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Transformaciones como se especificó para ResNet50

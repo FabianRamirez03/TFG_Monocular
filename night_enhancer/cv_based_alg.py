@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from data_loader import NightDataset
 from torchvision import transforms
 import matplotlib.pyplot as plt
-
+from PIL import Image
 
 transform = transforms.Compose(
     [
@@ -78,7 +78,25 @@ def get_illumination_channel(I, w):
         darkch[i, j] = np.min(padded[i : i + w, j : j + w, :])  # dark channel
         brightch[i, j] = np.max(padded[i : i + w, j : j + w, :])  # bright channel
 
+    # show_dark_bright_channels(darkch, brightch)
+
     return darkch, brightch
+
+
+def show_dark_bright_channels(darkch, brightch):
+    # Display the dark and bright channels
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    plt.imshow(darkch, cmap="gray")
+    plt.title("Zonas Oscuras")
+    plt.axis("off")
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(brightch, cmap="gray")
+    plt.title("Zonas Claras")
+    plt.axis("off")
+
+    plt.show()
 
 
 def reduce_init_t(init_t):
@@ -122,7 +140,9 @@ def show_four_images(image_0, image_1, image_2, image_3):
     plt.show()
 
 
-def main(tmin=0.1, w=5, alpha=0.4, omega=0.75, p=0.1, eps=1e-3, reduce=False):
+def main(
+    tmin=0.1, w=5, alpha=0.4, omega=0.75, p=0.1, eps=1e-3, reduce=False, image_path=None
+):
 
     # Asumiendo que NightDataset y transform están definidos correctamente
     dataset = NightDataset(
@@ -131,13 +151,29 @@ def main(tmin=0.1, w=5, alpha=0.4, omega=0.75, p=0.1, eps=1e-3, reduce=False):
         transform=transform,
     )
 
-    data_loader = DataLoader(dataset, batch_size=1, shuffle=True)
+    if image_path is not None:
+        # Carga la imagen desde la ruta especificada
+        image = Image.open(image_path).convert("RGB")
+        image = transform(image)
+        night_image_np = image.squeeze().permute(1, 2, 0).numpy().astype(np.float32)
 
-    for night_image in data_loader:
+        # Lista de imágenes para procesar
+        images_to_process = [night_image_np]
 
-        night_image_np = (
-            night_image.squeeze().permute(1, 2, 0).numpy().astype(np.float32)
+    else:
+        # Asumiendo que NightDataset y transform están definidos correctamente
+        dataset = NightDataset(
+            csv_file="..\\frames_labels.csv",
+            root_dir="..\\datasets\\custom_dataset\\Processed_cropped",
+            transform=transform,
         )
+        data_loader = DataLoader(dataset, batch_size=1, shuffle=True)
+        images_to_process = [
+            img.squeeze().permute(1, 2, 0).numpy().astype(np.float32)
+            for img in data_loader
+        ]
+
+    for night_image_np in images_to_process:
 
         darkch, brightch = get_illumination_channel(night_image_np, w)
 
@@ -227,4 +263,5 @@ def main(tmin=0.1, w=5, alpha=0.4, omega=0.75, p=0.1, eps=1e-3, reduce=False):
 
 
 if __name__ == "__main__":
-    main()
+    path = "..\\datasets\\custom_dataset\\Processed\\TEC-Subway-noche\\000000042.png"
+    main(image_path=path)
