@@ -4,9 +4,7 @@ import torch.optim as optim
 from torchvision import transforms, models
 from torch.utils.data import DataLoader
 from model import DualInputCNN
-from data_loader import (
-    CustomDataset,
-)  # Asegúrate de que data_loader.py esté en el mismo directorio que train.py
+from data_loader import CustomDataset
 import os
 import time
 import copy

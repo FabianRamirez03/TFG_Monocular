@@ -34,7 +34,7 @@ def process_video(video_path, output_directory):
     frame_count = 0
     saved_frame_count = 0  # Contador para los frames guardados
 
-    interval = int(fps * 2)  # Calcular el número de frames que equivalen a 2 segundos
+    interval = int(fps * 0.5)  # Calcular el número de frames que equivalen a 2 segundos
 
     while True:
         ret, frame = cap.read()
@@ -76,17 +76,19 @@ def video_to_frames(video_directory, output_directory):
 
 def convert_videos_dir_to_frame():
     # Asegúrate de ajustar las rutas de video_directory y output_directory según sea necesario
-    output_directory = "custom_dataset"
+    output_directory = "datasets\Results_datasets\\tagger\\frames"
 
-    video_directory = "E:\DashCam_videos\\common_rides"
+    video_directory = "datasets\Results_datasets\\tagger"
     video_to_frames(video_directory, output_directory)
 
+
+"""
     video_directory = "E:\DashCam_videos\\uncommon_rides"
     video_to_frames(video_directory, output_directory)
 
     video_directory = "E:\DashCam_videos\\rest"
     video_to_frames(video_directory, output_directory)
-
+"""
 
 ###############################################################################################################################
 
@@ -117,8 +119,8 @@ def create_csv_from_directory(base_dir, output_csv):
 
 def create_csv():
     # Reemplaza 'directorioA' con tu path relativo o absoluto al directorio base
-    base_dir = "custom_dataset\Processed"
-    output_csv = "frames_labels.csv"  # Nombre del archivo CSV de salida
+    base_dir = "datasets\\Results_datasets\\tagger\\frames"
+    output_csv = "datasets\\Results_datasets\\tagger\\frames\\frames_labels.csv"
 
     create_csv_from_directory(base_dir, output_csv)
 
@@ -173,8 +175,8 @@ def csv_mainteinence_with_directory(base_dir, csv_path):
 
 
 def csv_mainteinence():
-    base_dir = "datasets\\custom_dataset\\Processed"  # Asegúrate de ajustar esta ruta
-    csv_path = "frames_labels.csv"  # Asegúrate de ajustar esta ruta
+    base_dir = "datasets\\Results_datasets\\tagger\\frames"
+    csv_path = "datasets\\Results_datasets\\tagger\\frames\\frames_labels.csv"
     csv_mainteinence_with_directory(base_dir, csv_path)
 
 
@@ -201,7 +203,7 @@ def count_rows_with_data(csv_path):
 
 
 def print_data_rows_counter():
-    csv_path = "frames_labels.csv"  # Reemplaza esto con la ruta real a tu archivo CSV
+    csv_path = "datasets\\Results_datasets\\tagger\\frames\\frames_labels.csv"  # Reemplaza esto con la ruta real a tu archivo CSV
     num_rows_with_data = count_rows_with_data(csv_path)
     print(f"Número de filas con datos: {num_rows_with_data}")
 
@@ -270,15 +272,15 @@ def update_specific_csv_tags(csv_path, image_prefix, frames, tags):
 def update_csv():
     csv_mainteinence()
     # Ejemplo de uso
-    csv_path = "frames_labels.csv"  # Asegúrate de reemplazar 'tu_archivo.csv' con la ruta real de tu archivo CSV
-    image_prefix = "Haze-Images"  # Prefijo del path de las imágenes a actualizar
+    csv_path = "datasets\\Results_datasets\\tagger\\frames\\frames_labels.csv"  # Asegúrate de reemplazar 'tu_archivo.csv' con la ruta real de tu archivo CSV
+    image_prefix = "rain"  # Prefijo del path de las imágenes a actualizar
     frames = []
     tags = {
         "noche": False,
         "soleado": False,
         "nublado": False,
-        "lluvia": False,
-        "neblina": True,
+        "lluvia": True,
+        "neblina": False,
         "sombras": False,
     }
     if frames == []:
@@ -321,7 +323,7 @@ def count_label_combinations(csv_path):
 
 
 def print_label_counts():
-    csv_path = "frames_labels.csv"  # Reemplaza esto con la ruta real a tu archivo CSV
+    csv_path = "datasets\\Results_datasets\\tagger\\frames\\frames_labels.csv"  # Reemplaza esto con la ruta real a tu archivo CSV
     count_label_combinations(csv_path)
 
 
@@ -484,12 +486,12 @@ def main():
     # cleaning_wrong_directories_pipeline()
     # create_csv()
     # update_csv()
-    # csv_mainteinence()
+    csv_mainteinence()
     # find_and_remove_empty_directories()
     #  remove_accents_and_rename_directories()
     # convert_videos_dir_to_frame()
     # print_data_rows_counter()
-    print_label_counts()
+    # print_label_counts()
     # calculate_mean_std()
     # process_and_save_images()
 
