@@ -4,6 +4,7 @@ import torch
 from torchvision import transforms
 from torch.utils.data import DataLoader
 import numpy as np
+import pandas as pd
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -37,25 +38,19 @@ def main_tagger():
 
     dataloader = DataLoader(dataset, batch_size=1)
 
-    bit_accuracies = validate_model(model_tagger, dataloader, device)
+    bit_accuracies = tagger_validate_model(model_tagger, dataloader, device)
 
-    labels_order = ["noche", "soleado", "nublado", "lluvia", "neblina", "sombras"]
-    for i, accuracy in enumerate(bit_accuracies, start=1):
-        label = labels_order[i - 1]
-        print(f"Accuracy for {label}: {accuracy * 100:.2f}%")
+    tagger_error_statistics(bit_accuracies, csv_file)
 
 
-def validate_model(model, dataloader, device="cpu"):
+def tagger_validate_model(model, dataloader, device="cpu"):
     model.to(device)
     model.eval()
     running_loss = 0.0
     running_corrects = 0
-    correct_bits = [0, 0, 0, 0, 0, 0]
+    results = []
 
     for batch_idx, (inputs, labels) in enumerate(dataloader):
-        print(batch_idx)
-        if inputs.shape[0] == 1:
-            continue
         height = inputs.size(2)
         upper_section = inputs[:, :, : int(height * 0.25), :]
         lower_section = inputs[:, :, int(height * 0.25) :, :]
@@ -68,10 +63,72 @@ def validate_model(model, dataloader, device="cpu"):
         outputs = model(upper_section, lower_section)
         preds = torch.sigmoid(outputs).cpu().detach().numpy() > 0.5
         labels_bool = np.array(labels.cpu().detach().numpy()).astype(bool)
-        correct_bits += np.sum(preds == labels_bool, axis=0)
 
-    print(correct_bits)
+        results.append(preds == labels_bool)
+
+    return results
+
+
+def tagger_error_statistics(results, csv_path):
+    # Leer el CSV para obtener las rutas de las imágenes
+    data = pd.read_csv(csv_path)
+    image_paths = data["Path"].values
+
+    # Asumimos que los resultados están en una lista de listas, convertimos a un array de numpy
+    results_array = np.vstack(results)
+
+    # Calculamos la cantidad de False por columna, que representan los errores
+    errors_per_category = np.sum(~results_array, axis=0)
+
+    # Calculamos el total de predicciones evaluadas por categoría
+    total_predictions = results_array.shape[0]
+
+    # Nombres de las categorías para hacer más entendible el resultado
+    categories = ["noche", "soleado", "nublado", "lluvia", "neblina", "sombras"]
+
+    # Imprimir de manera amigable
+    print("Estadísticas de errores por categoría:")
+    for category, errors in zip(categories, errors_per_category):
+        error_percentage = (
+            errors / total_predictions
+        ) * 100  # Calculamos el porcentaje de errores
+        print(f"{category.capitalize()}: {errors} errores ({error_percentage:.2f}%)")
+
+    # Guardar los resultados originales en un nuevo CSV
+    save_results_to_csv(results, image_paths, csv_path)
+
+
+def save_results_to_csv(results, image_paths, original_csv_path):
+    # Crear un DataFrame para guardar los nuevos resultados
+    updated_data = pd.read_csv(original_csv_path)
+
+    for idx, result in enumerate(results):
+        updated_data.loc[idx, updated_data.columns[1:]] = result[0].astype(
+            int
+        )  # Actualizamos las predicciones
+
+    # Guardamos el nuevo CSV con las predicciones actualizadas
+    updated_data.to_csv("updated_results.csv", index=False)
+
+
+def print_image_names_no_rain(csv_path):
+    """
+    Imprime los nombres de las imágenes donde la columna de lluvia sea 0.
+
+    :param csv_path: Ruta al archivo CSV.
+    """
+    # Leer el archivo CSV usando pandas
+    data = pd.read_csv(csv_path)
+
+    # Filtrar las filas donde la columna 'lluvia' es igual a 0
+    no_rain_images = data[data["neblina"] == 0]
+
+    # Imprimir los nombres de las imágenes sin lluvia
+    for image_path in no_rain_images["Path"]:
+        print(image_path)
 
 
 if __name__ == "__main__":
-    main_tagger()
+    results_csv = "updated_results.csv"
+    print_image_names_no_rain(results_csv)
+    # main_tagger()

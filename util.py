@@ -309,7 +309,9 @@ def count_label_combinations(csv_path):
             labels = [
                 label
                 for label, value in row.items()
-                if value == "1" and label != "Path"
+                if value.strip() == "1"
+                and label
+                != "Path"  # Asegúrate de que los valores se comparen correctamente como strings
             ]
 
             # Añadir la combinación de etiquetas al contador
@@ -318,8 +320,11 @@ def count_label_combinations(csv_path):
                 combinations[combination] += 1
 
     # Imprimir el conteo de cada combinación de etiquetas
+    total = 0
     for combination, count in combinations.items():
+        total += count
         print(f"Total {combination}: {count}")
+    print(total)
 
 
 def print_label_counts():
@@ -486,12 +491,12 @@ def main():
     # cleaning_wrong_directories_pipeline()
     # create_csv()
     # update_csv()
-    csv_mainteinence()
+    # csv_mainteinence()
     # find_and_remove_empty_directories()
     #  remove_accents_and_rename_directories()
     # convert_videos_dir_to_frame()
-    # print_data_rows_counter()
-    # print_label_counts()
+    print_data_rows_counter()
+    print_label_counts()
     # calculate_mean_std()
     # process_and_save_images()
 

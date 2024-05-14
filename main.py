@@ -215,7 +215,7 @@ def AdaBins_infer_default():
     try:
         from AdaBins.infer import InferenceHelper
 
-        infer_helper = InferenceHelper(dataset="nyu")
+        infer_helper = InferenceHelper(dataset="kitti")
 
         bin_centers, predicted_depth = infer_helper.predict_pil(
             current_pil_image.resize((852, 480), Image.Resampling.LANCZOS)
