@@ -60,6 +60,35 @@ def upload_action(event=None):
     )  # Esto es solo para comprobar que se ha seleccionado un archivo
 
 
+def save_label_image(label, filepath):
+    # Asegúrate de que el directorio existe
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+    # Obtén el nombre de la imagen asociada al label
+    image_name = label.cget("image")
+    if not image_name:
+        raise ValueError("El label no tiene una imagen asociada")
+
+    # Obtén la referencia real de PhotoImage
+    photo_image = label.image
+
+    # Convierte PhotoImage a una imagen de PIL
+    pil_image = ImageTk.getimage(photo_image)
+
+    # Guarda la imagen en el path especificado
+    pil_image.save(filepath)
+
+
+def save_gui_images():
+    global input_image_label, processed_input_image_label, default_image_label, processed_image_label
+    save_label_image(input_image_label, "temp_images\\gui\\input_image.png")
+    save_label_image(
+        processed_input_image_label, "temp_images\\gui\\processed_input_image.png"
+    )
+    save_label_image(default_image_label, "temp_images\\gui\\default_image.png")
+    save_label_image(processed_image_label, "temp_images\\gui\\processed_image.png")
+
+
 def ConsolePrint(message):
     global console
     current_time = datetime.now().strftime("%H:%M:%S")
@@ -202,6 +231,8 @@ def AdaBins_infer():
         AdaBins_infer_processed()
 
         AdaBins_infer_default()
+
+        save_gui_images()
     else:
         ConsolePrint("No image or video selected.")
 
@@ -425,7 +456,7 @@ default_image_label = tk.Label(botton_frame, image=no_image_PI, width=426, heigh
 default_image_label.place(x=43, y=43)
 
 processed_image_label = tk.Label(botton_frame, image=no_image_PI, width=426, height=240)
-processed_image_label.place(x=497, y=43)
+processed_image_label.place(x=513, y=43)
 
 
 # Buttons
