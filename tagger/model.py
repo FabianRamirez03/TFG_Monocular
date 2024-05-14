@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
+from util import save_feature_map_combined
 
 
 class DualInputCNN(nn.Module):

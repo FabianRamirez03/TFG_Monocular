@@ -10,6 +10,9 @@ from PIL import Image
 from night_enhancer.data_loader import DarkenerDataset
 from torchvision.transforms.functional import InterpolationMode
 
+import matplotlib.pyplot as plt
+import numpy as np
+
 ###############################################################################################################################
 
 # Esta función recibe como entrada un directorio con videos y obtiene los frames de cada uno de esos videos,
@@ -481,6 +484,35 @@ def process_and_save_images():
             transformed_img.save(save_path)
 
             # print(f"Image saved to {save_path}")
+
+
+###############################################################################################################################
+
+
+def save_feature_map_combined(feature_map, filepath):
+    # Asegúrate de que el directorio existe
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+    # Convierte el tensor a un numpy array
+    feature_map_np = feature_map.detach().cpu().numpy()
+
+    # Promedia los canales
+    combined_feature_map = np.mean(feature_map_np[0], axis=0)
+
+    # Normaliza la característica para visualización
+    combined_feature_map = (combined_feature_map - combined_feature_map.min()) / (
+        combined_feature_map.max() - combined_feature_map.min()
+    )
+
+    # Convierte a RGB si es una imagen de una sola canal
+    if combined_feature_map.ndim == 2:
+        combined_feature_map = np.stack([combined_feature_map] * 3, axis=-1)
+
+    # Guarda la imagen combinada
+    plt.imshow(combined_feature_map, cmap="viridis")
+    plt.axis("off")
+    plt.savefig(filepath, bbox_inches="tight", pad_inches=0)
+    plt.close()
 
 
 ###############################################################################################################################

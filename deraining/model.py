@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+from util import save_feature_map_combined
 
 
 class ConvBlock(nn.Module):
@@ -86,42 +87,60 @@ class Deraining_UNet(nn.Module):
 
     def forward(self, x):
         # Downward path with attention
+        save_feature_map_combined(x, "temp_images\\deraining\\input.png")
+
         d1 = self.down1(x)
         d1 = self.att_d_1(d1)
+
+        save_feature_map_combined(d1, "temp_images\\deraining\\d1.png")
 
         d2 = self.down2(F.max_pool2d(d1, 2))
         d2 = self.att_d_2(d2)
 
+        save_feature_map_combined(d2, "temp_images\\deraining\\d2.png")
+
         d3 = self.down3(F.max_pool2d(d2, 2))
         d3 = self.att_d_3(d3)
+        save_feature_map_combined(d3, "temp_images\\deraining\\d3.png")
 
         d4 = self.down4(F.max_pool2d(d3, 2))
         d4 = self.att_d_4(d4)
 
+        save_feature_map_combined(d4, "temp_images\\deraining\\d4.png")
+
         # Middle with attention
         middle = self.middle(F.max_pool2d(d4, 2))
         middle = self.att_mid(middle)
+
+        save_feature_map_combined(middle, "temp_images\\deraining\\mid.png")
 
         # Upward path with attention
         u1 = self.up1(middle)
         u1 = torch.cat((u1, d4), 1)
         u1 = self.upconv1(u1)
         u1 = self.att_up_m1(u1)
+        save_feature_map_combined(u1, "temp_images\\deraining\\u1.png")
 
         u2 = self.up2(u1)
         u2 = torch.cat((u2, d3), 1)
         u2 = self.upconv2(u2)
         u2 = self.att_up_m2(u2)
+        save_feature_map_combined(u2, "temp_images\\deraining\\u2.png")
 
         u3 = self.up3(u2)
         u3 = torch.cat((u3, d2), 1)
         u3 = self.upconv3(u3)
         u3 = self.att_up_m3(u3)
+        save_feature_map_combined(u3, "temp_images\\deraining\\u3.png")
 
         u4 = self.up4(u3)
         u4 = torch.cat((u4, d1), 1)
         u4 = self.upconv4(u4)
         u4 = self.att4(u4)
+        save_feature_map_combined(u4, "temp_images\\deraining\\u4.png")
 
         output = self.final_conv(u4)
+        save_feature_map_combined(
+            self.final_activation(output), "temp_images\\deraining\\output.png"
+        )
         return self.final_activation(output)
