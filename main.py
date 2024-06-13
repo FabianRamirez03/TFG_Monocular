@@ -12,7 +12,9 @@ from tagger.model import DualInputCNN
 from deraining.model import Deraining_UNet
 from night_enhancer.night_enhancer import enhance_night_image
 from dehazing.model import Dehazing_UNet
-
+from skimage.feature import hog
+import csv
+import matplotlib.pyplot as plt
 
 # Processing Globals
 
@@ -85,8 +87,83 @@ def save_gui_images():
     save_label_image(
         processed_input_image_label, "temp_images\\gui\\processed_input_image.png"
     )
-    save_label_image(default_image_label, "temp_images\\gui\\default_image.png")
-    save_label_image(processed_image_label, "temp_images\\gui\\processed_image.png")
+    save_label_image(default_image_label, "temp_images\\gui\\default_map.png")
+    save_label_image(processed_image_label, "temp_images\\gui\\processed_map.png")
+
+
+def hog_score(depth_map_path):
+
+    depth_map = cv2.imread(depth_map_path)
+    if depth_map is None:
+        raise ValueError(f"No se pudo cargar la imagen de la ruta: {depth_map_path}")
+
+    # Convertir la imagen de mapa de profundidad a escala de grises
+    gray = cv2.cvtColor(depth_map, cv2.COLOR_BGR2GRAY)
+
+    # Calcular características HOG
+    features, hog_image = hog(
+        gray,
+        orientations=8,
+        pixels_per_cell=(16, 16),
+        cells_per_block=(1, 1),
+        visualize=True,
+    )
+
+    # Calcular la puntuación como la media de las características HOG
+    hog_score = np.mean(features)
+
+    image_name = depth_map_path.split("\\")[-1]
+
+    ConsolePrint(f"HOG score for {image_name}: {hog_score}")
+
+    return hog_score
+
+
+def edge_detection_score(depth_map_path):
+    # Cargar la imagen de mapa de profundidad
+    depth_map = cv2.imread(depth_map_path)
+    if depth_map is None:
+        raise ValueError(f"No se pudo cargar la imagen de la ruta: {depth_map_path}")
+
+    # Convertir la imagen de mapa de profundidad a escala de grises
+    gray = cv2.cvtColor(depth_map, cv2.COLOR_BGR2GRAY)
+
+    # Aplicar un filtro Gaussiano para suavizar la imagen y reducir el ruido
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    # Aplicar detección de bordes usando el algoritmo de Canny
+    edges = cv2.Canny(blurred, 50, 150, apertureSize=5, L2gradient=True)
+
+    # Contar el número de píxeles de borde detectados
+    edge_count = np.sum(edges > 0)
+
+    # Normalizar según el tamaño de la imagen
+    height, width = gray.shape
+    total_pixels = height * width
+    edge_score = edge_count / total_pixels
+
+    # Mostrar la imagen de bordes para depuración
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    plt.title("Original Image")
+    plt.imshow(cv2.cvtColor(depth_map, cv2.COLOR_BGR2RGB))
+
+    plt.subplot(1, 2, 2)
+    plt.title(f"Edges Detected (Score: {edge_score:.2f})")
+    plt.imshow(edges, cmap="gray")
+
+    # plt.show()
+
+    return edge_score
+
+
+def update_csv(default_score, processed_score, csv_path):
+    ConsolePrint(f"Guardando puntajes en {csv_path}")
+    # Abrir el archivo en modo de añadido (append)
+    with open(csv_path, mode="a", newline="") as file:
+        writer = csv.writer(file)
+        # Escribir la nueva fila con los puntajes
+        writer.writerow([default_score, processed_score])
 
 
 def ConsolePrint(message):
@@ -226,6 +303,7 @@ def change_working_directory(path):
 
 
 def AdaBins_infer():
+    global neblina, noche, lluvia
     # Infer the default image
     if current_pil_image is not None:
         AdaBins_infer_processed()
@@ -233,6 +311,19 @@ def AdaBins_infer():
         AdaBins_infer_default()
 
         save_gui_images()
+
+        edge_score_default = edge_detection_score("temp_images\\gui\\default_map.png")
+        edge_score_processed = edge_detection_score(
+            "temp_images\\gui\\processed_map.png"
+        )
+
+        if neblina:
+            update_csv(edge_score_default, edge_score_processed, "haze_results.csv")
+        elif noche:
+            update_csv(edge_score_default, edge_score_processed, "night_results.csv")
+        elif lluvia:
+            update_csv(edge_score_default, edge_score_processed, "rain_results.csv")
+
     else:
         ConsolePrint("No image or video selected.")
 

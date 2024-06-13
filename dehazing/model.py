@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from util import save_feature_map_combined
 
 
 class DoubleConv(nn.Module):
@@ -79,14 +80,29 @@ class Dehazing_UNet(nn.Module):
         self.outc = nn.Conv2d(64, out_channels, kernel_size=1)
 
     def forward(self, x):
+        save_feature_map_combined(x, "temp_images\\dehazing\\input.png")
         x1 = self.inc(x)
+        save_feature_map_combined(x1, "temp_images\\dehazing\\x1.png")
         x2 = self.down1(x1)
+        save_feature_map_combined(x2, "temp_images\\dehazing\\x2.png")
         x3 = self.down2(x2)
+        save_feature_map_combined(x3, "temp_images\\dehazing\\x3.png")
         x4 = self.down3(x3)
+        save_feature_map_combined(x4, "temp_images\\dehazing\\x4.png")
         x5 = self.down4(x4)
+        save_feature_map_combined(x5, "temp_images\\dehazing\\x5.png")
         x = self.up1(x5, x4)
+        save_feature_map_combined(x, "temp_images\\dehazing\\up1.png")
         x = self.up2(x, x3)
+        save_feature_map_combined(x, "temp_images\\dehazing\\up2.png")
         x = self.up3(x, x2)
+        save_feature_map_combined(x, "temp_images\\dehazing\\up3.png")
         x = self.up4(x, x1)
+        save_feature_map_combined(x, "temp_images\\dehazing\\up4.png")
         x = self.outc(x)
+        save_feature_map_combined(x, "temp_images\\dehazing\\outc.png")
+
+        save_feature_map_combined(
+            torch.sigmoid(x), "temp_images\\dehazing\\sigmoid.png"
+        )
         return torch.sigmoid(x)

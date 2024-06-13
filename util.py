@@ -12,6 +12,7 @@ from torchvision.transforms.functional import InterpolationMode
 
 import matplotlib.pyplot as plt
 import numpy as np
+import random
 
 ###############################################################################################################################
 
@@ -510,6 +511,35 @@ def save_feature_map_combined(feature_map, filepath):
 
     # Guarda la imagen combinada
     plt.imshow(combined_feature_map, cmap="viridis")
+    plt.axis("off")
+    plt.savefig(filepath, bbox_inches="tight", pad_inches=0)
+    plt.close()
+
+
+###############################################################################################################################
+
+
+def save_random_feature_map(tensor, filepath):
+    # Asegúrate de que el directorio existe
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+    # Convierte el tensor a un numpy array
+    tensor_np = tensor.detach().cpu().numpy()
+
+    # Selecciona un canal aleatorio
+    num_channels = tensor_np.shape[1]
+    random_channel = random.randint(0, num_channels - 1)
+
+    # Obtén el feature map del canal aleatorio
+    feature_map = tensor_np[0, random_channel, :, :]
+
+    # Normaliza la característica para visualización
+    feature_map = (feature_map - feature_map.min()) / (
+        feature_map.max() - feature_map.min()
+    )
+
+    # Guarda la imagen
+    plt.imshow(feature_map, cmap="viridis")
     plt.axis("off")
     plt.savefig(filepath, bbox_inches="tight", pad_inches=0)
     plt.close()
