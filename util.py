@@ -10,6 +10,10 @@ from PIL import Image
 from night_enhancer.data_loader import DarkenerDataset
 from torchvision.transforms.functional import InterpolationMode
 
+import matplotlib.pyplot as plt
+import numpy as np
+import random
+
 ###############################################################################################################################
 
 # Esta función recibe como entrada un directorio con videos y obtiene los frames de cada uno de esos videos,
@@ -309,7 +313,9 @@ def count_label_combinations(csv_path):
             labels = [
                 label
                 for label, value in row.items()
-                if value == "1" and label != "Path"
+                if value.strip() == "1"
+                and label
+                != "Path"  # Asegúrate de que los valores se comparen correctamente como strings
             ]
 
             # Añadir la combinación de etiquetas al contador
@@ -318,8 +324,11 @@ def count_label_combinations(csv_path):
                 combinations[combination] += 1
 
     # Imprimir el conteo de cada combinación de etiquetas
+    total = 0
     for combination, count in combinations.items():
+        total += count
         print(f"Total {combination}: {count}")
+    print(total)
 
 
 def print_label_counts():
@@ -481,17 +490,75 @@ def process_and_save_images():
 ###############################################################################################################################
 
 
+def save_feature_map_combined(feature_map, filepath):
+    # Asegúrate de que el directorio existe
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+    # Convierte el tensor a un numpy array
+    feature_map_np = feature_map.detach().cpu().numpy()
+
+    # Promedia los canales
+    combined_feature_map = np.mean(feature_map_np[0], axis=0)
+
+    # Normaliza la característica para visualización
+    combined_feature_map = (combined_feature_map - combined_feature_map.min()) / (
+        combined_feature_map.max() - combined_feature_map.min()
+    )
+
+    # Convierte a RGB si es una imagen de una sola canal
+    if combined_feature_map.ndim == 2:
+        combined_feature_map = np.stack([combined_feature_map] * 3, axis=-1)
+
+    # Guarda la imagen combinada
+    plt.imshow(combined_feature_map, cmap="viridis")
+    plt.axis("off")
+    plt.savefig(filepath, bbox_inches="tight", pad_inches=0)
+    plt.close()
+
+
+###############################################################################################################################
+
+
+def save_random_feature_map(tensor, filepath):
+    # Asegúrate de que el directorio existe
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+    # Convierte el tensor a un numpy array
+    tensor_np = tensor.detach().cpu().numpy()
+
+    # Selecciona un canal aleatorio
+    num_channels = tensor_np.shape[1]
+    random_channel = random.randint(0, num_channels - 1)
+
+    # Obtén el feature map del canal aleatorio
+    feature_map = tensor_np[0, random_channel, :, :]
+
+    # Normaliza la característica para visualización
+    feature_map = (feature_map - feature_map.min()) / (
+        feature_map.max() - feature_map.min()
+    )
+
+    # Guarda la imagen
+    plt.imshow(feature_map, cmap="viridis")
+    plt.axis("off")
+    plt.savefig(filepath, bbox_inches="tight", pad_inches=0)
+    plt.close()
+
+
+###############################################################################################################################
+
+
 def main():
 
     # cleaning_wrong_directories_pipeline()
     # create_csv()
     # update_csv()
-    csv_mainteinence()
+    # csv_mainteinence()
     # find_and_remove_empty_directories()
     #  remove_accents_and_rename_directories()
     # convert_videos_dir_to_frame()
-    # print_data_rows_counter()
-    # print_label_counts()
+    print_data_rows_counter()
+    print_label_counts()
     # calculate_mean_std()
     # process_and_save_images()
 

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
+from util import save_feature_map_combined, save_random_feature_map
 
 
 class DualInputCNN(nn.Module):
@@ -30,17 +31,37 @@ class DualInputCNN(nn.Module):
 
     def forward(self, x_upper, x_lower):
         # Procesar la parte superior e inferior con las mismas capas base
+        save_feature_map_combined(x_upper, "temp_images\\tagger\\x_upper.png")
+        save_feature_map_combined(x_lower, "temp_images\\tagger\\x_lower.png")
+
         x_upper = self.base_layers(x_upper)
         x_lower = self.base_layers(x_lower)
+
+        save_feature_map_combined(x_upper, "temp_images\\tagger\\x_upper_resnet.png")
+        save_feature_map_combined(x_lower, "temp_images\\tagger\\x_lower_resnet.png")
+
+        save_random_feature_map(x_upper, "temp_images\\tagger\\u_r1.png")
+        save_random_feature_map(x_upper, "temp_images\\tagger\\u_r2.png")
+        save_random_feature_map(x_upper, "temp_images\\tagger\\u_r3.png")
+
+        save_random_feature_map(x_lower, "temp_images\\tagger\\d_r1.png")
+        save_random_feature_map(x_lower, "temp_images\\tagger\\d_r2.png")
+        save_random_feature_map(x_lower, "temp_images\\tagger\\d_r3.png")
 
         # Aplicar pooling para convertir las características a un tamaño fijo
         x_upper = self.avgpool(x_upper)
         x_lower = self.avgpool(x_lower)
 
+        save_feature_map_combined(x_upper, "temp_images\\tagger\\avgpool_upper.png")
+        save_feature_map_combined(x_lower, "temp_images\\tagger\\avgpool_lower.png")
+
         # Aplanar las características y concatenarlas
         x_upper = torch.flatten(x_upper, 1)
         x_lower = torch.flatten(x_lower, 1)
+
         x_fused = torch.cat((x_upper, x_lower), dim=1)
+
+        print(x_fused.shape)
 
         # Clasificación final
         out = self.classifier(x_fused)
